@@ -2,8 +2,8 @@
   "name": "provenyx-security",
   "displayName": "Provenyx Security",
   "description": "Software dependency trust and supply-chain security analysis",
-  "version": "0.1.0",
-  "publisher": "Provenyx",
+  "version": "0.1.2",
+  "publisher": "OmkarPramodBandikatte",
   "license": "MIT",
   "private": true,
   "icon": "images/icon.png",
@@ -23,6 +23,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onStartupFinished",
     "workspaceContains:package-lock.json"
   ],
   "contributes": {

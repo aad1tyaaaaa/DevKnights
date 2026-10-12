@@ -5,9 +5,16 @@ import { checkHealth } from './services/apiClient';
 import { createLockfileWatcher } from './services/lockfileWatcher';
 import { openDashboard } from './utils/dashboard';
 import { showApiError } from './utils/errors';
+import { findLockfiles } from './utils/workspace';
 
 export function activate(context: vscode.ExtensionContext) {
   const tree = new FindingsTreeProvider();
+
+  const scanExistingLockfile = async (folder?: vscode.WorkspaceFolder) => {
+    if (!vscode.workspace.getConfiguration('provenyx').get<boolean>('autoScanEnabled', true)) return;
+    const [lockfile] = await findLockfiles(folder);
+    if (lockfile) await scanDependencies(tree, lockfile);
+  };
 
   const checkBackend = async (notify: boolean) => {
     try {
@@ -34,7 +41,10 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand('provenyx.checkBackend', () => checkBackend(true)),
     createLockfileWatcher((uri) => void scanDependencies(tree, uri)),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => tree.refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+      tree.refresh();
+      for (const folder of event.added) void scanExistingLockfile(folder);
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('provenyx.apiBaseUrl')) void checkBackend(false);
     }),
@@ -42,6 +52,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Local health probe only; no project data is sent.
   void checkBackend(false);
+
+  // File watchers only observe future writes, so scan the lockfile already present when a project opens.
+  void scanExistingLockfile();
 
   // Exposed for the extension's own smoke tests; not a public API.
   return { tree };

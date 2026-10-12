@@ -151,6 +151,7 @@ async function runChecks() {
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
     consentChoice = undefined;
+    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', true, vscode.ConfigurationTarget.Global);
     const consentBeforeWatcher = consentShown;
     const lockPath = lockfiles[0].fsPath;
     const original = fs.readFileSync(lockPath, 'utf8');
