@@ -124,6 +124,20 @@ npm --prefix contracts run deploy:local  # writes contracts/deployments/localhos
 npm --prefix contracts run anchor:local  # anchors hashes from contracts/anchors.json
 ```
 
+### Release verification end to end
+
+```bash
+npm --prefix contracts run node                              # terminal 3, keep running
+npm --prefix contracts run deploy:local
+cp demo/anchors.demo.json contracts/anchors.json             # or: cd backend && .venv/Scripts/python -m app.blockchain.manifest ms@2.1.3 > ../contracts/anchors.json
+npm --prefix contracts run anchor:local
+curl -X POST localhost:8000/api/releases/verify -H "Content-Type: application/json" -d '{"package":"ms","version":"2.1.3"}'   # match
+curl -X POST localhost:8000/api/releases/verify -H "Content-Type: application/json" -d '{"package":"ms","version":"2.1.2"}'   # mismatch (deliberately altered demo record)
+curl -X POST localhost:8000/api/releases/verify -H "Content-Type: application/json" -d '{"package":"ms","version":"2.0.0"}'   # no_record
+```
+
+Stop the node and the same call returns `unavailable`. In the dashboard, open a scan, select a package, and click **Verify release**. The backend reads the chain only; it holds no keys.
+
 See `contracts/README.md` for the release id format and how verification results map to API statuses.
 
 ## Ports

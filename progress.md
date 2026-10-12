@@ -13,26 +13,19 @@ Live status of the work. The plan and ownership are in [PROVENYX_END_TO_END_PHAS
 | 3 | Real npm scanner | Omkar | ✅ Done |
 | 4 | Risk engine | Omkar | ✅ Done |
 | 5 | Web dashboard | Aaditya | ✅ Done — verified with real backend data |
-| 6 | Blockchain verification | Omkar + Aaditya | 🟡 Aaditya's part ✅ · Omkar's part ⬜ |
-| 7 | Integration and testing | Both | 🟡 Mostly done — Phase 6 cases remain |
-| 8 | Marketplace and demo | Aaditya | 🟡 Ready; ⛔ blocked on publisher ID + license |
+| 6 | Blockchain verification | Omkar + Aaditya | ✅ Done |
+| 7 | Integration and testing | Both | ✅ Done |
+| 8 | Marketplace and demo | Aaditya | ✅ Ready to publish (needs the publisher's token) |
 
 ---
 
-## Blockers and decisions needed
+## Remaining manual steps (need a person, not code)
 
-| Item | Who | Notes |
+| Step | Who | How |
 |---|---|---|
-| ⛔ Marketplace publisher ID | Aaditya | Create the publisher (Microsoft account + Azure DevOps org) and set `publisher` in `extension/package.json`. |
-| ⛔ License | Aaditya + Omkar | `extension/LICENSE` is an all-rights-reserved placeholder. Pick one and update the `license` field. |
-| ⏳ Release verification endpoint | Omkar | `POST /api/releases/verify` (Phase 6), shape in `docs/api-contract.md`. The dashboard already calls it and shows "not available yet" until it exists. |
-
-## Handoff to Omkar
-
-- **API shapes:** follow `docs/api-contract.md` exactly. The UI treats `404`/`405`/`501` as "not available yet", so endpoints can merge one at a time.
-- **Contract:** run `npm --prefix contracts run node`, then `deploy:local`. Read `contracts/deployments/localhost.json` (address, chain id, ABI) and call `recordOf(releaseId)`.
-- **Release id:** `releaseId = keccak256(utf8("name@version"))`. Reference implementation: `contracts/scripts/releaseId.ts`.
-- **Anchoring for the demo:** put your canonical manifest hashes in `contracts/anchors.json`, then run `npm --prefix contracts run anchor:local`.
+| Publish to the Marketplace | Aaditya | Make sure the publisher `Provenyx` exists, then `cd extension && npx vsce login Provenyx` (Personal Access Token, *Marketplace → Manage*) and `npx vsce publish`. Or upload the VSIX in the publisher portal. |
+| Rehearse the demo and record a backup video | Aaditya + Omkar | Follow `docs/demo-script.md`; every step has been verified end to end. |
+| Confirm the license | Aaditya + Omkar | MIT was applied as the default; change `LICENSE` files and `extension/package.json` if you prefer another. |
 
 ## Log
 
@@ -119,3 +112,37 @@ Branch: `aaditya/phases-2-5-6-8`.
   - extension smoke test runs a **real** scan to completion in VS Code
   - frontend build passes
   - 14/14 browser checks pass, including real findings, graph and registry data from the merged backend
+
+### 2026-10-12 — Phases 6, 7 and 8 completed (branch `aaditya/complete-phases`)
+
+**Phase 6 — release verification backend** (`backend/app/blockchain/`)
+- Canonical manifest (schema 1): `{integrity: npm dist.integrity, name, schema_version, version}`, serialised as sorted-key compact UTF-8 JSON and hashed with keccak256. `pycryptodome` provides Keccak (Python's `sha3_256` uses different padding).
+- Cross-language consistency: Python (`manifest.py`) and TypeScript (`contracts/scripts/manifest.ts`) are pinned to the same vectors (release id, manifest bytes, manifest hash, `recordOf` selector).
+- `POST /api/releases/verify`:
+  - validated input
+  - reads `recordOf` over JSON-RPC, read-only with no keys
+  - returns match, mismatch, no_record or unavailable, plus the anchor source, time and manifest
+- CLI `python -m app.blockchain.manifest name@version` produces `anchors.json` entries from real npm metadata. `demo/anchors.demo.json` holds a real match and a deliberately altered mismatch.
+- Verified with 8 new backend tests, and live on a Hardhat chain: approved → match, altered → mismatch, never anchored → no_record, chain stopped → unavailable. The dashboard showed a real match with the local-chain label.
+
+**Phase 7 — remaining integration tests**
+- The VS Code smoke test now also covers:
+  - lockfile watcher: 3 rapid writes give 1 prompt; declining sends nothing; silent when off
+  - an empty workspace: the "No package-lock.json found" warning appears, with no consent dialog
+- Fixed test isolation: backend tests had written into the dev `provenyx.db` and triggered real npm calls. An autouse fixture now gives each test a temporary database and an offline registry.
+
+**Phase 8 — Marketplace**
+- Publisher `Provenyx`, MIT license (extension, repo root, Solidity SPDX).
+- README screenshots in `docs/images/`, captured from real scans of the labelled demo fixtures and a live local chain.
+- CHANGELOG, checklist and demo script updated, including the seeded demo data.
+
+**Verification snapshot**
+
+| Check | Result |
+|---|---|
+| Backend tests | ✅ 48 passed |
+| Contract tests | ✅ 6 passing |
+| VS Code smoke test (sample project + empty workspace, real backend) | ✅ |
+| Frontend production build | ✅ |
+| Browser checks (synthetic mock + real backend + live chain) | ✅ 15/15 |
+| VSIX package + clean-profile install | ✅ |

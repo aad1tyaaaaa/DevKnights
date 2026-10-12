@@ -22,9 +22,9 @@
 | 3 | Real npm scanner | 4 h | **Omkar** | — | ✅ Done | Lockfile parser, registry lookup, graph |
 | 4 | Risk engine | 4 h | **Omkar** | Aaditya (fixtures review) | ✅ Done | Explainable findings and blast radius |
 | 5 | Web dashboard | 3 h | **Aaditya** | — | ✅ Done — verified with real backend data | Investigation UI with real data |
-| 6 | Blockchain verification | 3 h | **Omkar** (manifest + backend) | **Aaditya** (contract + UI) | 🟡 Aaditya's part ✅ · Omkar's part ⬜ | Anchored manifest verification |
-| 7 | Integration and testing | 3 h | Aaditya + Omkar | — | 🟡 Mostly done | Core scan workflow tested; Phase 6 cases remain |
-| 8 | Marketplace and demo | 2 h | **Aaditya** | Omkar (backend demo setup) | 🟡 Ready — blocked on publisher ID + license | Tested VSIX and publication submission |
+| 6 | Blockchain verification | 3 h | **Omkar** (manifest + backend) | **Aaditya** (contract + UI) | ✅ Done | Anchored manifest verification |
+| 7 | Integration and testing | 3 h | Aaditya + Omkar | — | ✅ Done | Reliable end-to-end workflow |
+| 8 | Marketplace and demo | 2 h | **Aaditya** | Omkar (backend demo setup) | ✅ Ready — publish needs the publisher's token | Tested VSIX and publication submission |
 
 These are effort budgets. Run independent tasks in parallel. Publication processing is not included.
 
@@ -87,7 +87,7 @@ provenyx/
 | `GET /api/scans/{id}` | Status and summary | ✅ Implemented | Omkar (Phase 3) |
 | `GET /api/scans/{id}/findings` | Evidence-backed findings | ✅ Implemented | Omkar (Phase 4) |
 | `GET /api/scans/{id}/graph` | Nodes and edges | ✅ Implemented | Omkar (Phase 3) |
-| `POST /api/releases/verify` | Trusted manifest verification | ⬜ Draft schema | Omkar (Phase 6) |
+| `POST /api/releases/verify` | Trusted manifest verification | ✅ Implemented | Phase 6 |
 
 ### Done when
 - [x] Extension activates in development host (automated smoke test: `npm --prefix extension run test:smoke`).
@@ -228,30 +228,30 @@ White/off-white cards, deep forest-green sidebar, mint accents, subtle borders, 
 ### Objective
 Verify that current release evidence matches a previously approved anchored manifest.
 
-**Owners:** Omkar (manifest + backend) · Aaditya (contract + UI) · **Status:** 🟡 Aaditya's tasks ✅ · Omkar's tasks ⬜ · **Where:** `contracts/`, `backend/app/blockchain/`, `frontend/`
+**Owners:** Omkar (manifest + backend) · Aaditya (contract + UI) · **Status:** ✅ Done (2026-10-12) · **Where:** `contracts/`, `backend/app/blockchain/`, `frontend/`
 
 ### Tasks
 | # | Task | Owner | Status |
 |---|---|---|---|
-| 1 | Define canonical manifest fields: package, version, selected trusted metadata, schema version. | Omkar | ⬜ |
-| 2 | Serialize deterministically and hash; test cross-language consistency. | Omkar | ⬜ |
+| 1 | Define canonical manifest fields: package, version, selected trusted metadata, schema version. | Omkar | ✅ `{integrity, name, schema_version: 1, version}` (`backend/app/blockchain/manifest.py`) |
+| 2 | Serialize deterministically and hash; test cross-language consistency. | Omkar | ✅ Sorted-key compact UTF-8 JSON → keccak256; Python and TypeScript pinned to the same vectors |
 | 3 | Create `ReleaseRegistry.sol` with authorized anchoring and public lookup. | Aaditya | ✅ `anchor`, `recordOf` (hash + `anchoredAt`), `matches`; write-once, owner-only; 5 tests |
 | 4 | Deploy to local Hardhat chain only; share address + ABI with Omkar. | Aaditya | ✅ `deploy:local` writes `deployments/localhost.json`; `anchor:local` anchors from `anchors.json` |
-| 5 | Implement backend verification and return `match`, `mismatch`, `no_record`, or `unavailable`. | Omkar | ⬜ |
+| 5 | Implement backend verification and return `match`, `mismatch`, `no_record`, or `unavailable`. | Omkar | ✅ `POST /api/releases/verify`, read-only JSON-RPC (`backend/app/blockchain/`) |
 | 6 | Show the source of the anchor, manifest details, and local-demo-chain labeling. | Aaditya | ✅ `VerificationStatus` in the package drawer |
 
 ### Done when
-- [ ] Approved manifest matches.
-- [ ] Altered manifest mismatches.
-- [ ] Unknown manifest returns no record.
-- [ ] Offline chain returns unavailable.
+- [x] Approved manifest matches.
+- [x] Altered manifest mismatches.
+- [x] Unknown manifest returns no record.
+- [x] Offline chain returns unavailable (all four checked in unit tests and on a live Hardhat chain).
 - [x] UI does not claim hash match proves safety.
 
 ---
 
 ## Phase 7 — Integration, security, testing (3 hours)
 
-**Owners:** Aaditya + Omkar (each tests the other's side) · **Status:** 🟡 Mostly done — blockchain verification waits on Phase 6; manual clean-profile packaging remains
+**Owners:** Aaditya + Omkar (each tests the other's side) · **Status:** ✅ Done (2026-10-12)
 
 ### End-to-end test cases
 | | Test | Owner |
@@ -259,14 +259,14 @@ Verify that current release evidence matches a previously approved anchored mani
 | ✅ | VS Code → FastAPI → npm analysis → findings → dashboard (extension smoke test runs a real scan incl. consent; dashboard checked against real findings). | Aaditya + Omkar |
 | ✅ | Valid lockfile scans correctly. | Omkar |
 | ✅ | Malformed or oversized lockfile is rejected safely (backend tests). | Omkar |
-| ⬜ | No lockfile is handled (implemented; to test manually). | Aaditya |
+| ✅ | No lockfile is handled (automated: VS Code smoke test on an empty workspace). | Aaditya |
 | ✅ | Backend offline and npm registry timeout are handled. | Aaditya (offline) · Omkar (registry) |
 | ✅ | Benign update does not trigger unjustified high risk. | Omkar |
 | ✅ | Labeled synthetic suspicious fixture triggers expected rule. | Omkar |
-| ⬜ | Missing blockchain record is not treated as mismatch. | Omkar |
-| ⬜ | Watcher is debounced and respects user consent (implemented; to test manually). | Aaditya |
+| ✅ | Missing blockchain record is not treated as mismatch (unit test + live chain). | Omkar |
+| ✅ | Watcher is debounced and respects user consent (automated: 3 rapid writes → 1 prompt; declining sends nothing; off by default). | Aaditya |
 | ✅ | No dependency scripts execute. | Omkar |
-| ⬜ | VSIX installs in a clean VS Code profile. | Aaditya |
+| ✅ | VSIX installs in a clean VS Code profile. | Aaditya |
 
 ### Deliverables
 Passing tests, fixed blockers, tagged commit, tested VSIX, backup demo recording.
@@ -275,7 +275,7 @@ Passing tests, fixed blockers, tagged commit, tested VSIX, backup demo recording
 
 ## Phase 8 — Marketplace publishing and demo (2 hours of team effort)
 
-**Owner:** Aaditya · **Support:** Omkar (backend + local chain running for the demo) · **Status:** 🟡 Ready to publish once the publisher ID and license are set — see `docs/marketplace-checklist.md`; demo script in `docs/demo-script.md`.
+**Owner:** Aaditya · **Support:** Omkar (backend + local chain running for the demo) · **Status:** ✅ Ready — publisher `Provenyx`, MIT license, screenshots, tested VSIX. Publishing itself needs the publisher's Personal Access Token (see `docs/marketplace-checklist.md`); demo script in `docs/demo-script.md`.
 
 ### Publisher account
 1. Visit [Marketplace publisher management](https://marketplace.visualstudio.com/manage/publishers/).
@@ -284,10 +284,10 @@ Passing tests, fixed blockers, tagged commit, tested VSIX, backup demo recording
 4. Prefer an account the team can retain long term.
 
 ### Listing readiness
-- [ ] Exact publisher ID in extension `package.json`.
+- [x] Exact publisher ID in extension `package.json` (`Provenyx`).
 - [x] Display name, description, version, VS Code engine compatibility.
-- [ ] Genuine icon (128×128 PNG), screenshots, README — icon and README done; screenshots wait for real results.
-- [ ] Repository, license, support details, privacy disclosure — all done except the license choice.
+- [x] Genuine icon (128×128 PNG), screenshots, README.
+- [x] Repository, license (MIT), support details, privacy disclosure.
 - [x] Backend availability documented: Marketplace does **not** host FastAPI.
 - [x] `.vscodeignore` excludes secrets, large dev files, and fixtures not required at runtime.
 
@@ -320,8 +320,8 @@ You can also upload a packaged VSIX through the publisher portal. Never commit c
 
 ### Done when
 - [x] VSIX works independently of Marketplace approval (installs in a clean profile; shipped bundle passes the smoke test).
-- [x] Marketplace submission succeeds or blocker is documented (blocked on publisher ID + license).
-- [ ] Demo works with a backup plan — script and fallbacks in `docs/demo-script.md`; rehearse after Phase 7.
+- [x] Marketplace submission succeeds or blocker is documented (only the publisher's token is needed: `npx vsce login Provenyx` then `npx vsce publish`).
+- [x] Demo works with a backup plan: every step verified end to end; script, seeded data, and fallbacks in `docs/demo-script.md`. Rehearse once and record a backup video before presenting.
 
 ---
 

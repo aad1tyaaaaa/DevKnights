@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { network } from "hardhat";
-import { keccak256, toHex } from "viem";
+import { keccak256, toFunctionSelector, toHex } from "viem";
 
+import { canonicalManifestJson, manifestHash as canonicalManifestHash } from "../scripts/manifest.ts";
 import { releaseId as releaseIdOf } from "../scripts/releaseId.ts";
 
 const ZERO = `0x${"00".repeat(32)}` as const;
@@ -15,6 +16,17 @@ describe("ReleaseRegistry", async function () {
 
   const releaseId = releaseIdOf("left-pad", "1.3.0");
   const manifestHash = keccak256(toHex('{"example":"manifest"}'));
+
+  it("matches the backend's cross-language vectors (backend/tests/test_release_verification.py)", function () {
+    const integrity = "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==";
+    assert.equal(releaseIdOf("ms", "2.1.3"), "0xa43c9c80df88be1fb6a327509e12f4e480ab9950e12150e7a357cd7f8df03228");
+    assert.equal(
+      canonicalManifestJson("ms", "2.1.3", integrity),
+      `{"integrity":"${integrity}","name":"ms","schema_version":1,"version":"2.1.3"}`,
+    );
+    assert.equal(canonicalManifestHash("ms", "2.1.3", integrity), "0x7bcaaca2890ef8f5e14508703eb31a1dc5fff3e3e5c8e137c0184b179f550d4d");
+    assert.equal(toFunctionSelector("recordOf(bytes32)"), "0xd1c60a3a");
+  });
 
   it("derives release ids as keccak256(utf8(name@version))", function () {
     assert.equal(releaseId, keccak256(toHex("left-pad@1.3.0")));

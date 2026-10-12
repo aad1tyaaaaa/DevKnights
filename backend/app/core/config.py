@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -11,6 +15,11 @@ class Settings(BaseSettings):
     npm_registry_concurrency: int = 10
     npm_registry_timeout_seconds: float = 5.0
     npm_registry_retries: int = 2
+    # Release registry (Phase 6): local Hardhat chain only. Read-only; no keys are needed.
+    registry_rpc_url: str = "http://127.0.0.1:8545"
+    registry_deployment_file: str = str(_REPO_ROOT / "contracts" / "deployments" / "localhost.json")
+    registry_address: str | None = None
+    registry_timeout_seconds: float = 3.0
 
     @property
     def cors_origin_list(self) -> list[str]:

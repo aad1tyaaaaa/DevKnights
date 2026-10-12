@@ -7,6 +7,8 @@ from pydantic import ValidationError
 from app import __version__
 from app.core.config import settings
 from app.models.database import ScanRepository
+from app.blockchain.registry import ReleaseRegistryReader
+from app.blockchain.verify import ReleaseVerifier
 from app.models.schemas import (
     ErrorResponse,
     Finding,
@@ -16,6 +18,8 @@ from app.models.schemas import (
     ScanDetail,
     ScanGraph,
     ScanRequest,
+    VerificationResult,
+    VerifyRequest,
 )
 from app.parsers.npm_registry import NpmRegistryClient
 from app.services import ScanService
@@ -32,8 +36,23 @@ scan_service = ScanService(
 )
 
 
+release_verifier = ReleaseVerifier(
+    ReleaseRegistryReader(
+        rpc_url=settings.registry_rpc_url,
+        deployment_file=settings.registry_deployment_file,
+        address=settings.registry_address,
+        timeout_seconds=settings.registry_timeout_seconds,
+    ),
+    scan_service.registry,
+)
+
+
 def get_scan_service() -> ScanService:
     return scan_service
+
+
+def get_release_verifier() -> ReleaseVerifier:
+    return release_verifier
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -156,3 +175,11 @@ def compare_scans(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
+
+
+@router.post("/api/releases/verify", response_model=VerificationResult)
+async def verify_release(
+    body: VerifyRequest,
+    verifier: Annotated[ReleaseVerifier, Depends(get_release_verifier)],
+) -> VerificationResult:
+    return await verifier.verify(body.package, body.version)

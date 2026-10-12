@@ -16,6 +16,20 @@ Provenyx helps JavaScript and TypeScript developers investigate the npm dependen
 
 Findings are leads to investigate, not proof of compromise. When a release matches a blockchain-anchored record, its metadata is unchanged, but that does not prove the package is safe. A release with no record is not suspicious in itself.
 
+## Screenshots
+
+Findings with their evidence, and the dependency path that pulls a package into your project (the screenshot uses the repository's labelled synthetic test fixtures):
+
+![Findings and dependency graph](https://raw.githubusercontent.com/aad1tyaaaaa/DevKnights/main/docs/images/findings-graph.png)
+
+Release-record verification against a blockchain-anchored manifest (local development chain):
+
+![Release verification](https://raw.githubusercontent.com/aad1tyaaaaa/DevKnights/main/docs/images/release-verification.png)
+
+Scan history in the web dashboard:
+
+![Dashboard](https://raw.githubusercontent.com/aad1tyaaaaa/DevKnights/main/docs/images/dashboard.png)
+
 ## Privacy and safety
 
 - Provenyx **never installs, builds, or executes** packages from your project and never runs lifecycle scripts.

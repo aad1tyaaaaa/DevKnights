@@ -35,14 +35,14 @@ Restarting `npm run node` wipes the chain. Re-run `deploy:local` and `anchor:loc
 { "network": "localhost", "chainId": 31337, "address": "0x…", "owner": "0x…", "deployedAt": "…", "abi": [ … ] }
 ```
 
-The backend's `POST /api/releases/verify` reads the address and ABI from this file, calls `recordOf(releaseId)`, and compares the result with its recomputed canonical manifest hash:
+The backend's `POST /api/releases/verify` (implemented in `backend/app/blockchain/`) reads the address from this file (or `PROVENYX_REGISTRY_ADDRESS`), calls `recordOf(releaseId)` read-only over JSON-RPC (`PROVENYX_REGISTRY_RPC_URL`, default `http://127.0.0.1:8545`), and compares the result with its recomputed canonical manifest hash:
 
 | On-chain result | API status |
 |---|---|
 | Stored hash equals the recomputed hash | `match` |
 | Stored hash differs | `mismatch` |
 | Zero hash | `no_record` |
-| Chain unreachable or not deployed | `unavailable` |
+| Chain unreachable, not deployed, or current npm metadata unreadable | `unavailable` |
 
 ## Anchoring approved manifests
 
@@ -52,7 +52,15 @@ The backend's `POST /api/releases/verify` reads the address and ABI from this fi
 [{ "package": "ms", "version": "2.1.3", "manifestHash": "0x<64 hex chars>" }]
 ```
 
-`manifestHash` must come from the backend's canonical manifest serializer (owner: Omkar). The script does not compute hashes, and it refuses the all-zero placeholder. Releases that are already anchored are skipped.
+Generate entries from public npm metadata with the backend's canonical serializer (it refuses releases whose metadata is unavailable):
+
+```bash
+cd backend && .venv/Scripts/python -m app.blockchain.manifest ms@2.1.3 left-pad@1.3.0 > ../contracts/anchors.json
+```
+
+The anchor script itself never computes or guesses hashes, refuses the all-zero placeholder, and skips releases that are already anchored. `scripts/manifest.ts` is the TypeScript reference of the same canonical format; the tests pin both implementations to the same vectors.
+
+For the demo, `demo/anchors.demo.json` contains the real `ms@2.1.3` hash and a **deliberately altered** hash for `ms@2.1.2` (to show a mismatch).
 
 ## How results must be interpreted
 

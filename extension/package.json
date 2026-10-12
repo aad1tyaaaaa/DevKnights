@@ -3,8 +3,8 @@
   "displayName": "Provenyx Security",
   "description": "Software dependency trust and supply-chain security analysis",
   "version": "0.1.0",
-  "publisher": "your-publisher-id",
-  "license": "SEE LICENSE IN LICENSE",
+  "publisher": "Provenyx",
+  "license": "MIT",
   "private": true,
   "icon": "images/icon.png",
   "engines": {

@@ -47,6 +47,7 @@ The monorepo does **not** use npm workspaces: each JS package has its own `node_
 - Error messages shown to users never include lockfile contents.
 - Registry requests retrieve public metadata only, use bounded concurrency/timeouts/retries, and report failures as unavailable rather than inventing values.
 - Blockchain results are evidence, not verdicts: a match is not proof of safety; no record is not proof of compromise.
+- Release verification is read-only (`eth_call` over JSON-RPC): the backend holds no keys and never writes to the chain. Anchoring is a separate, owner-only step in `contracts/`.
 
 ## Persistence
 

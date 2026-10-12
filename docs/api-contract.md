@@ -72,7 +72,7 @@ Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localho
 | `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges |
 | `GET /api/scans/{scan_id}/findings` | Evidence-backed findings — a JSON **array** of Finding |
 | `GET /api/scans/{scan_id}/compare/{baseline_scan_id}` | Additions, removals, upgrades, and new edges between two scans |
-| `POST /api/releases/verify` | Release-record verification — **Phase 6, not implemented yet** |
+| `POST /api/releases/verify` | Release-record verification against the on-chain registry (Phase 6) |
 
 Unknown `scan_id` → `404 { "detail": "Scan not found" }`. Clients treat `404`/`405`/`501` on these routes as "not available" rather than as an empty result.
 
@@ -147,9 +147,11 @@ Every finding carries at least one piece of evidence. `severity`, `confidence`, 
 
 `409` when either scan is not complete.
 
-### Release verification — `POST /api/releases/verify` (Phase 6, agreed shape, not implemented yet)
+### Release verification — `POST /api/releases/verify` (implemented — Phase 6)
 
-Request: `{ "package": "ms", "version": "2.1.3" }`
+Request: `{ "package": "ms", "version": "2.1.3" }`. `package` must be a valid npm name (optionally scoped), `version` letters, digits and `.+-` only; other fields are rejected (`422`). Always `200` with a `status`; failures are reported as `unavailable`, never as a guess.
+
+**Canonical manifest (schema 1):** `{"integrity": <npm dist.integrity>, "name", "schema_version": 1, "version"}` serialised as UTF-8 JSON with sorted keys and no whitespace; `manifest_hash = keccak256(bytes)`. Reference implementations: `backend/app/blockchain/manifest.py` and `contracts/scripts/manifest.ts`, pinned to shared test vectors.
 
 `release_id` is `keccak256(utf8("<name>@<version>"))` as 0x-prefixed hex — the same id used by `ReleaseRegistry.anchor` (see `contracts/README.md`).
 
@@ -163,7 +165,7 @@ Request: `{ "package": "ms", "version": "2.1.3" }`
   "anchored_at": "2026-10-12T10:00:00Z",   // null if no record
   "manifest": { "schema_version": 1, "name": "ms", "version": "2.1.3", "integrity": "sha512-…" },  // canonical fields, or null
   "registry": { "network": "hardhat-local", "chain_id": 31337, "address": "0x…" },             // null if not configured
-  "detail": null                   // reason when status = unavailable
+  "detail": null                   // reason when status = unavailable (e.g. chain unreachable, registry not deployed)
 }
 ```
 

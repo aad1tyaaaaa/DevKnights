@@ -142,3 +142,32 @@ class Finding(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+NPM_NAME_PATTERN = r"^(@[A-Za-z0-9-~][A-Za-z0-9-._~]*/)?[A-Za-z0-9-~][A-Za-z0-9-._~]*$"
+
+
+class VerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    package: str = Field(min_length=1, max_length=214, pattern=NPM_NAME_PATTERN)
+    version: str = Field(min_length=1, max_length=128, pattern=r"^[0-9A-Za-z.+-]+$")
+
+
+class RegistryLocation(BaseModel):
+    network: str
+    chain_id: int
+    address: str
+
+
+class VerificationResult(BaseModel):
+    package: str
+    version: str
+    release_id: str
+    status: Literal["match", "mismatch", "no_record", "unavailable"]
+    manifest_hash: str | None = None
+    anchored_hash: str | None = None
+    anchored_at: datetime | None = None
+    manifest: dict[str, Any] | None = None
+    registry: RegistryLocation | None = None
+    detail: str | None = None

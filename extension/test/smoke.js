@@ -2,6 +2,7 @@
 // Runs inside VS Code against a throwaway in-test HTTP server that implements docs/api-contract.md.
 // All data served below is SYNTHETIC test data and never leaves this test.
 const assert = require('node:assert');
+const fs = require('node:fs');
 const http = require('node:http');
 const vscode = require('vscode');
 
@@ -35,6 +36,7 @@ function startFakeApi(mode) {
         const parsed = JSON.parse(body);
         assert.strictEqual(parsed.lockfile.lockfileVersion, 3, 'extension must send the parsed lockfile');
         server.lastProjectName = parsed.project_name;
+        server.posts = (server.posts ?? 0) + 1;
         return send(202, { scan_id: SCAN_ID, status: 'accepted', message: 'Lockfile received.' });
       }
       if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}`) {
@@ -56,10 +58,26 @@ async function useApi(url) {
 
 const labels = (items) => items.map((i) => `${i.label}${i.description ? ` | ${i.description}` : ''}`);
 
+const TRACE = (m) => require('node:fs').appendFileSync(process.env.SMOKE_TRACE || require('node:path').join(require('node:os').tmpdir(), 'provenyx-smoke-trace.log'), `${new Date().toISOString()} ${m}
+`);
+TRACE('module loaded');
 exports.run = async function run() {
+  TRACE('run() entered');
+  try {
+    await runChecks();
+  } catch (err) {
+    TRACE('FAILED ' + (err && err.stack ? err.stack : err));
+    console.error('[provenyx smoke] FAILED:', err && err.stack ? err.stack : err);
+    throw err;
+  }
+};
+
+async function runChecks() {
   const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'provenyx-security');
   assert.ok(ext, 'extension not loaded');
+  TRACE('activating');
   const { tree } = await ext.activate();
+  TRACE('activated');
   assert.ok(ext.isActive, 'extension did not activate');
 
   const commands = await vscode.commands.getCommands(true);
@@ -74,7 +92,9 @@ exports.run = async function run() {
   // Auto-confirm the consent dialog (and only that dialog) so the flow can run unattended.
   const originalInfo = vscode.window.showInformationMessage;
   let consentShown = 0;
+  let watcherPrompts = 0;
   vscode.window.showInformationMessage = (message, ...rest) => {
+    if (/changed\. Scan it\?/.test(message)) watcherPrompts++;
     const opts = rest[0];
     if (opts && typeof opts === 'object' && opts.modal) {
       consentShown++;
@@ -85,6 +105,7 @@ exports.run = async function run() {
   };
 
   try {
+    TRACE('// 1. Backend like');
     // 1. Backend like today's Phase 1 API: scan accepted, no findings endpoint yet.
     let api = await startFakeApi('phase1');
     await useApi(`http://127.0.0.1:${api.address().port}`);
@@ -96,6 +117,7 @@ exports.run = async function run() {
     assert.ok(labels(tree.getChildren()).includes('No dependency findings yet'), labels(tree.getChildren()).join(', '));
     api.close();
 
+    TRACE('// 2. Full contract');
     // 2. Full contract: scan completes and findings appear in the sidebar.
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
@@ -109,6 +131,7 @@ exports.run = async function run() {
     assert.deepStrictEqual(finding.command.arguments, [`/scans/${SCAN_ID}?finding=f-1`]);
     api.close();
 
+    TRACE('// 3. Backend offline');
     // 3. Backend offline: no crash, clear state.
     await useApi('http://127.0.0.1:9');
     await vscode.commands.executeCommand('provenyx.checkBackend');
@@ -117,7 +140,28 @@ exports.run = async function run() {
     assert.strictEqual(tree.lastScan.kind, 'failed');
     assert.match(tree.lastScan.message, /Cannot reach the Provenyx API/);
 
-    // 4. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).
+    TRACE('// 4. Lockfile watcher');
+    // 4. Lockfile watcher (autoScanEnabled): a burst of writes gives ONE prompt, and declining sends nothing.
+    api = await startFakeApi('full');
+    await useApi(`http://127.0.0.1:${api.address().port}`);
+    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', true, vscode.ConfigurationTarget.Global);
+    const lockPath = lockfiles[0].fsPath;
+    const original = fs.readFileSync(lockPath, 'utf8');
+    for (let i = 0; i < 3; i++) {
+      fs.writeFileSync(lockPath, original);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    await new Promise((r) => setTimeout(r, 3500)); // > 1.5 s debounce
+    assert.strictEqual(watcherPrompts, 1, `watcher prompts: ${watcherPrompts}`);
+    assert.strictEqual(api.posts ?? 0, 0, 'declining the watcher prompt must not send the lockfile');
+    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', undefined, vscode.ConfigurationTarget.Global);
+    fs.writeFileSync(lockPath, original);
+    await new Promise((r) => setTimeout(r, 2000));
+    assert.strictEqual(watcherPrompts, 1, 'watcher must stay silent when autoScanEnabled is off');
+    api.close();
+
+    TRACE('// 5. Optional');
+    // 5. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).
     const real = process.env.PROVENYX_SMOKE_REAL_API;
     if (real) {
       await useApi(real);
@@ -132,5 +176,5 @@ exports.run = async function run() {
     await useApi(undefined);
   }
 
-  console.log('[provenyx smoke] OK: activation, commands, consent, scan→findings, offline backend');
+  console.log('[provenyx smoke] OK: activation, commands, consent, scan→findings, offline backend, debounced watcher');
 };

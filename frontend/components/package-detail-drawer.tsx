@@ -111,7 +111,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
                 {node.registry.description && (<><dt className="text-ink-muted">Description</dt><dd className="text-ink">{node.registry.description}</dd></>)}
                 <dt className="text-ink-muted">License</dt><dd className="text-ink">{node.registry.license ?? 'Unknown'}</dd>
-                <dt className="text-ink-muted">Published</dt><dd className="text-ink">{formatDate(node.registry.published_at)}</dd>
+                {node.registry.published_at && (<><dt className="text-ink-muted">Published</dt><dd className="text-ink">{formatDate(node.registry.published_at)}</dd></>)}
                 {node.registry.deprecated && (<><dt className="text-ink-muted">Deprecated</dt><dd className="text-[#a36b0c]">{node.registry.deprecated}</dd></>)}
                 {node.registry.dist_integrity && (<><dt className="text-ink-muted">Integrity</dt><dd className="break-all font-mono text-[11px] text-ink">{node.registry.dist_integrity}</dd></>)}
               </dl>
