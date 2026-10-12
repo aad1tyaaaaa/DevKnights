@@ -1,17 +1,38 @@
+<div align="center">
+
+<img src="frontend/public/logo.png" alt="Provenyx logo" width="120" />
+
 # Provenyx Security
 
-**Trust Every Dependency. Verify Every Release.**
+**Trust every dependency. Verify every release.**
+
+Explainable software supply-chain security for npm projects, in your editor, your browser and your pull requests.
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-a3214f.svg)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
+![Solidity 0.8.28](https://img.shields.io/badge/Solidity-0.8.28-363636?logo=solidity&logoColor=white)
+![VS Code extension](https://img.shields.io/badge/VS%20Code-extension-007ACC?logo=visualstudiocode&logoColor=white)
+
+[**Live dashboard**](https://provenyx.vercel.app) · [Screenshots](#screenshots) · [Getting started](#getting-started) · [Deployment](#deployment) · [Documentation](#documentation)
+
+</div>
+
+![Provenyx landing page](docs/images/ui/landing.jpg)
+
+## Overview
 
 Provenyx is a software supply-chain security tool for JavaScript and TypeScript projects that use npm. It reviews what changed in your dependencies, explains each finding with evidence, and checks npm releases against a blockchain registry of approved release manifests. It never installs or runs your packages.
 
 It has three parts: a **VS Code extension** (the main product), a **web dashboard** for deeper investigation, and a **smart-contract registry** for approved releases. All three use one **FastAPI backend**.
 
-![Findings and dependency graph](docs/images/findings-graph.png)
-
 ---
 
 ## Contents
 
+- [Overview](#overview)
+- [Screenshots](#screenshots)
 - [Why Provenyx](#why-provenyx)
 - [How it works](#how-it-works)
 - [Features](#features)
@@ -25,6 +46,7 @@ It has three parts: a **VS Code extension** (the main product), a **web dashboar
 - [Repository layout](#repository-layout)
 - [Getting started](#getting-started)
 - [Running the full demo](#running-the-full-demo)
+- [Deployment](#deployment)
 - [Testing](#testing)
 - [API overview](#api-overview)
 - [Configuration](#configuration)
@@ -33,6 +55,39 @@ It has three parts: a **VS Code extension** (the main product), a **web dashboar
 - [Team](#team)
 - [Documentation](#documentation)
 - [License](#license)
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/ui/dashboard.png" alt="Dashboard with backend status, scan metrics and recent scans" /></td>
+    <td width="50%"><img src="docs/images/ui/scan-findings.png" alt="Scan detail with metrics and evidence-backed findings" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Dashboard</b><br/><sub>Backend status, latest-scan metrics and scan history</sub></td>
+    <td align="center"><b>Scan findings</b><br/><sub>Severity, confidence and priority for every finding</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/ui/finding-detail.png" alt="Package investigation panel with evidence and dependency path" /></td>
+    <td width="50%"><img src="docs/images/ui/dependency-graph.png" alt="Interactive radial dependency graph of 118 packages" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Package investigation</b><br/><sub>The evidence, its source and the exact dependency path</sub></td>
+    <td align="center"><b>Dependency graph</b><br/><sub>Radial, tree, force and hub layouts with path tracing</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/ui/new-scan.png" alt="Lockfile upload with explicit consent" /></td>
+    <td width="50%"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>New scan</b><br/><sub>Validated in the browser; nothing is sent without consent</sub></td>
+    <td></td>
+  </tr>
+</table>
+
+<sub>Captured with the Playwright CLI from a local build, using the synthetic demo fixtures in <code>demo/fixtures/</code> and this repository's own <code>frontend/package-lock.json</code>.</sub>
 
 ---
 
@@ -92,19 +147,18 @@ Every answer comes with its evidence, and Provenyx is explicit about what it doe
 
 - **Dashboard.** Shows backend status, setup guidance, real scan history, and metrics from the latest completed scan.
 - **New scan** (`/scan/new`). Upload a lockfile; it is validated in the browser, and you tick an explicit consent box that names the API URL.
+- **GitHub sign-in and projects** (`/github`). Sign in with GitHub and scan a lockfile straight from one of your repositories, public or private. The token stays in an encrypted, HTTP-only cookie and is never stored.
 - **Scan detail** (`/scans/[id]`):
   - live progress while the scan runs
   - metrics and analysis notes (what could not be determined)
   - a findings table with a severity filter
-  - an interactive **dependency graph** (Cytoscape.js) with zoom, pan, fit, node selection and path highlighting
+  - an interactive **dependency graph** (Cytoscape.js) with radial, tree, force and hub layouts, zoom, pan, node selection and path highlighting
 - **Package panel.** Evidence, unknowns, dependency paths, npm registry metadata (licence, deprecation, integrity), install locations, and **release verification**.
 - Designed for desktop and phone (no horizontal scrolling at 390 px), with accessible controls and honest empty, loading and error states.
 
-![Release verification](docs/images/release-verification.png)
-
 ### Backend
 
-- Scans are persisted in SQLite through SQLAlchemy, so moving to PostgreSQL is a connection-string change.
+- Scans are persisted through SQLAlchemy: SQLite locally, PostgreSQL (for example Neon) in production, chosen by one connection string.
 - Lockfile parser for v1, v2 and v3, including scoped names and nested `node_modules` paths.
 - The dependency graph uses npm's nearest-ancestor resolution.
 - npm registry client with caching and bounded concurrency. Metadata it cannot fetch is marked *unavailable*, never guessed.
@@ -218,7 +272,7 @@ The registry runs on a **local Hardhat development chain only**. No public netwo
 
 | Tool | Focus | How Provenyx differs |
 |---|---|---|
-| [Socket](https://socket.dev) | Scans package code for risky behaviour (install scripts, network/shell access, typosquats, maintainer changes); has a VS Code extension | Provenyx reviews **what changed between two scans** and shows the dependency path. Its detection is much narrower (3 rules); it complements Socket rather than replacing it. |
+| [Socket](https://socket.dev) | Scans package code for risky behaviour (install scripts, network/shell access, typosquats, maintainer changes); has a VS Code extension | Provenyx reviews **what changed between two scans** and shows the dependency path. Its detection is narrower (nine explainable rules); it complements Socket rather than replacing it. |
 | Snyk, `npm audit` | Known vulnerabilities (CVEs) | Provenyx looks at the *behaviour* of updates, not CVE databases. |
 | npm provenance / Sigstore | Proves which CI pipeline built a package | Provenyx anchors **who approved** a release, as an independently checkable record. |
 | NpmGuard (ETHGlobal 2026) | Runs packages in a sandbox with AI-assisted review; gives a SAFE/DANGEROUS verdict | Provenyx never executes packages, and uses the chain for approved-release records rather than payments. |
@@ -245,8 +299,9 @@ The monorepo deliberately does **not** use npm workspaces: each JavaScript packa
 | Area | Technologies |
 |---|---|
 | Extension | TypeScript, VS Code Extension API (TreeView), esbuild, `@vscode/vsce`, `@vscode/test-electron` |
-| Backend | Python 3.11+, FastAPI, Pydantic, Uvicorn, SQLAlchemy + SQLite, NetworkX, httpx, optional Gemini ranking, pycryptodome (Keccak), pytest |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui conventions, Lucide icons, Cytoscape.js |
+| Backend | Python 3.11+, FastAPI, Pydantic, Uvicorn, SQLAlchemy (SQLite or PostgreSQL via psycopg), NetworkX, httpx, GitHub OAuth, optional Gemini ranking, pytest |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui conventions, Framer Motion, Lucide icons, Cytoscape.js |
+| Hosting | Vercel (dashboard), Render (API), Neon (PostgreSQL) |
 | Blockchain | Solidity 0.8.28, Hardhat 3, viem, `node:test` |
 
 ## Repository layout
@@ -330,11 +385,30 @@ cd backend && python -m app.blockchain.manifest ms@2.1.3 left-pad@1.3.0 > ../con
 
 The presenter script and fallbacks are in [docs/demo-script.md](docs/demo-script.md).
 
+## Deployment
+
+The whole project runs online on free tiers:
+
+| Part | Host | Configured by |
+|---|---|---|
+| Dashboard (`frontend/`) | Vercel | `frontend/next.config.mjs` proxies `/api/*` to the API so cookies stay first-party |
+| API (`backend/`) | Render | [`render.yaml`](render.yaml) Blueprint: build, start command, health check and generated secrets |
+| Database | Neon PostgreSQL | `PROVENYX_DATABASE_URL`, used exactly as Neon provides it |
+| Sign-in | GitHub OAuth App | Callback `https://<your-dashboard>/api/github/auth/callback` |
+
+The API start command is:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+```
+
+Set the same `PROVENYX_API_KEY` on Render and Vercel. If your Render service URL is not `https://provenyx-api.onrender.com`, set `PROVENYX_API_PROXY_URL` on Vercel and redeploy. The step-by-step guide, including keep-alive pings for the free plan, is in [deploy.md](deploy.md).
+
 ## Testing
 
 | Suite | Command | Covers |
 |---|---|---|
-| Backend (48 tests) | `cd backend && python -m pytest` | Health, scan API, parser, graph, comparison, detection rules, npm client, end to end, release verification and the shared test values. Each test uses its own temporary database and no real npm traffic. |
+| Backend (93 tests) | `cd backend && python -m pytest` | Health, scan API, parser, graph, comparison, detection rules, npm client, end to end, release verification and the shared test values. Each test uses its own temporary database and no real npm traffic. |
 | Contracts (6 tests) | `npm run test:contracts` | Anchoring, records, access control, write-once, and the values shared with Python. |
 | Extension smoke test | `npm --prefix extension run test:smoke` | Runs in a real VS Code instance: activation, commands, consent, scan → findings, backend offline, debounced watcher, and an empty workspace. Add `PROVENYX_SMOKE_REAL_API=http://127.0.0.1:8000` to also run a real scan. |
 | Frontend | `npm run build:frontend` | Production build with full type checking. |
@@ -387,9 +461,9 @@ All eight phases are implemented and verified. Details are in [progress.md](prog
 
 ## Limitations and future work
 
-- **Detection remains focused.** OSV advisories work without a baseline; four behavioral rules compare against prior scans. Next candidates include npm provenance, maintainer-history changes, and install-script introduction.
+- **Detection remains focused.** OSV advisories work without a baseline; the change-based rules compare against an earlier scan. Next candidates include maintainer-history analysis and typosquat detection.
 - **The registry is minimal.** It has one owner, write-once records, and runs only on a local chain. Next: multi-signer approvals (for example 2 of N team members), revocation, and a public testnet.
-- **The backend is self-hosted.** The Marketplace hosts only the extension. A hosted API needs authentication and privacy terms.
+- **Shared access, not per-user isolation.** The hosted API is protected by GitHub sign-in and one shared access key, but scans are not yet owned by individual users. Per-user scan ownership and privacy terms come before opening it to the public.
 - **npm only.** pnpm, Yarn and other ecosystems are future work.
 - **Known flaky test:** the extension smoke test occasionally fails on its first launch, before any test code runs. A rerun passes.
 
