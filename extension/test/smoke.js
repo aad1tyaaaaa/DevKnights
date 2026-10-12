@@ -58,15 +58,10 @@ async function useApi(url) {
 
 const labels = (items) => items.map((i) => `${i.label}${i.description ? ` | ${i.description}` : ''}`);
 
-const TRACE = (m) => require('node:fs').appendFileSync(process.env.SMOKE_TRACE || require('node:path').join(require('node:os').tmpdir(), 'provenyx-smoke-trace.log'), `${new Date().toISOString()} ${m}
-`);
-TRACE('module loaded');
 exports.run = async function run() {
-  TRACE('run() entered');
   try {
     await runChecks();
   } catch (err) {
-    TRACE('FAILED ' + (err && err.stack ? err.stack : err));
     console.error('[provenyx smoke] FAILED:', err && err.stack ? err.stack : err);
     throw err;
   }
@@ -75,9 +70,7 @@ exports.run = async function run() {
 async function runChecks() {
   const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'provenyx-security');
   assert.ok(ext, 'extension not loaded');
-  TRACE('activating');
   const { tree } = await ext.activate();
-  TRACE('activated');
   assert.ok(ext.isActive, 'extension did not activate');
 
   const commands = await vscode.commands.getCommands(true);
@@ -105,7 +98,6 @@ async function runChecks() {
   };
 
   try {
-    TRACE('// 1. Backend like');
     // 1. Backend like today's Phase 1 API: scan accepted, no findings endpoint yet.
     let api = await startFakeApi('phase1');
     await useApi(`http://127.0.0.1:${api.address().port}`);
@@ -117,7 +109,6 @@ async function runChecks() {
     assert.ok(labels(tree.getChildren()).includes('No dependency findings yet'), labels(tree.getChildren()).join(', '));
     api.close();
 
-    TRACE('// 2. Full contract');
     // 2. Full contract: scan completes and findings appear in the sidebar.
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
@@ -131,7 +122,6 @@ async function runChecks() {
     assert.deepStrictEqual(finding.command.arguments, [`/scans/${SCAN_ID}?finding=f-1`]);
     api.close();
 
-    TRACE('// 3. Backend offline');
     // 3. Backend offline: no crash, clear state.
     await useApi('http://127.0.0.1:9');
     await vscode.commands.executeCommand('provenyx.checkBackend');
@@ -140,7 +130,6 @@ async function runChecks() {
     assert.strictEqual(tree.lastScan.kind, 'failed');
     assert.match(tree.lastScan.message, /Cannot reach the Provenyx API/);
 
-    TRACE('// 4. Lockfile watcher');
     // 4. Lockfile watcher (autoScanEnabled): a burst of writes gives ONE prompt, and declining sends nothing.
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
@@ -160,7 +149,6 @@ async function runChecks() {
     assert.strictEqual(watcherPrompts, 1, 'watcher must stay silent when autoScanEnabled is off');
     api.close();
 
-    TRACE('// 5. Optional');
     // 5. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).
     const real = process.env.PROVENYX_SMOKE_REAL_API;
     if (real) {
