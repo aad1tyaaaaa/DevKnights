@@ -7,6 +7,8 @@ from typing import Any
 
 from app.detection.ai_ranker import AiRankingError, GeminiFindingRanker
 from app.detection.osv import OsvClient
+from app.detection.typosquatting import DEFAULT_TRUSTED_PACKAGES, detect_typosquatting
+from app.detection.static_analysis import StaticArtifactInspector
 from app.graph.builder import build_dependency_graph
 from app.graph.comparison import compare_graphs
 from app.detection.rules import (
@@ -16,6 +18,7 @@ from app.detection.rules import (
     detect_provenance_regressions,
     detect_publisher_changes,
     detect_unusual_release_timing,
+    correlate_publisher_risk,
 )
 from app.models.database import ScanRepository
 from app.models.schemas import (
@@ -42,11 +45,17 @@ class ScanService:
         *,
         osv: OsvClient | None = None,
         finding_ranker: GeminiFindingRanker | None = None,
+        trusted_packages: tuple[str, ...] | list[str] | None = None,
+        static_inspector: StaticArtifactInspector | None = None,
+        static_max_packages: int = 20,
     ) -> None:
         self.repository = repository
         self.registry = registry
         self.osv = osv
         self.finding_ranker = finding_ranker
+        self.trusted_packages = tuple(trusted_packages or DEFAULT_TRUSTED_PACKAGES)
+        self.static_inspector = static_inspector
+        self.static_max_packages = max(1, static_max_packages)
 
     def create_scan(self, lockfile: dict[str, Any], project_name: str | None, owner_id: str | None = None) -> str:
         scan_id = str(uuid.uuid4())
@@ -83,6 +92,8 @@ class ScanService:
                 if project_name
                 else None
             )
+            typo_candidate_ids = {node.id for node in nodes}
+            static_candidate_ids = {node.id for node in nodes}
             if not project_name:
                 analysis_warnings.append(
                     "The lockfile has no project name, so no baseline was selected; change-based rules did not run."
@@ -95,6 +106,14 @@ class ScanService:
             if project_name:
                 if baseline_row is not None and baseline_row.graph is not None:
                     baseline_graph = ScanGraph.model_validate(baseline_row.graph)
+                    baseline_names = {node.name for node in baseline_graph.nodes}
+                    comparison = compare_graphs(baseline_graph, scan_graph)
+                    typo_candidate_ids = {
+                        node_id
+                        for node_id in comparison.added_packages
+                        if next(node for node in scan_graph.nodes if node.id == node_id).name not in baseline_names
+                    }
+                    static_candidate_ids = set(comparison.added_packages)
                     findings.extend(
                         detect_graph_changes(
                             baseline_graph,
@@ -111,7 +130,6 @@ class ScanService:
                     )
                     findings.extend(detect_install_script_changes(baseline_graph, scan_graph, observed_at=row.created_at))
                     findings.extend(detect_provenance_regressions(baseline_graph, scan_graph, observed_at=row.created_at))
-                    comparison = compare_graphs(baseline_graph, scan_graph)
                     release_times = await self.registry.fetch_release_times_many(
                         change.name for change in comparison.version_changes
                     )
@@ -123,6 +141,36 @@ class ScanService:
                             observed_at=row.created_at,
                         )
                     )
+            findings.extend(
+                detect_typosquatting(
+                    scan_graph,
+                    candidate_ids=typo_candidate_ids,
+                    observed_at=row.created_at,
+                    trusted_packages=self.trusted_packages,
+                )
+            )
+            if self.static_inspector is not None and static_candidate_ids:
+                risk_by_id: dict[str, int] = {}
+                for finding in findings:
+                    risk_by_id[f"{finding.package}@{finding.version}"] = max(
+                        risk_by_id.get(f"{finding.package}@{finding.version}", 0), finding.priority_score
+                    )
+                node_by_id = {node.id: node for node in nodes}
+                selected = sorted(
+                    static_candidate_ids,
+                    key=lambda node_id: (
+                        -risk_by_id.get(node_id, 0),
+                        not node_by_id[node_id].direct,
+                        not bool(node_by_id[node_id].registry.install_scripts),
+                        node_id,
+                    ),
+                )[: self.static_max_packages]
+                static_findings, static_warnings = await self.static_inspector.analyze(
+                    scan_graph, candidate_ids=selected, observed_at=row.created_at
+                )
+                findings.extend(static_findings)
+                analysis_warnings.extend(static_warnings)
+            findings = correlate_publisher_risk(findings, observed_at=row.created_at)
             findings.sort(
                 key=lambda finding: (-finding.priority_score, finding.rule_id, finding.package, finding.version)
             )

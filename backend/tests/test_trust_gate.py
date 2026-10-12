@@ -4,6 +4,7 @@ import json
 import httpx
 
 from app.detection.osv import OsvClient
+from app.models.schemas import Finding, FindingEvidence
 from app.gate import COMMENT_MARKER, TrustGate, _load_lockfile
 from app.parsers.npm_registry import NpmRegistryClient
 from tests.fakes import osv_transport
@@ -168,3 +169,45 @@ def test_lockfile_install_script_flag_is_used_when_the_registry_has_no_record():
 
     assert checks["Runs an install script (declared in lockfile)"] == "warn"
     assert checks["Not verifiable on the npm registry (Release metadata was not found in the npm registry)"] == "warn"
+
+
+def test_typosquatting_finding_is_evaluated_by_the_gate():
+    head = lockfile({"node_modules/expres": {"version": "1.0.0"}}, {"expres": "1.0.0"})
+    report = asyncio.run(make_gate().evaluate(head, None, fail_on="medium"))
+    release = report.releases[0]
+    assert report.verdict == "fail"
+    assert any(finding.rule_id == "possible-typosquatting" for finding in release.findings)
+
+
+def test_static_finding_is_evaluated_by_the_gate():
+    class StaticInspector:
+        async def analyze(self, graph, *, candidate_ids, observed_at):
+            node = next(node for node in graph.nodes if node.id in candidate_ids)
+            return [
+                Finding(
+                    id="gate-static",
+                    rule_id="suspicious-install-time-behavior",
+                    package=node.name,
+                    version=node.version,
+                    severity="high",
+                    confidence="medium",
+                    priority_score=88,
+                    title="Suspicious install-time behavior",
+                    explanation="Synthetic gate integration finding; package code was not executed.",
+                    evidence=[
+                        FindingEvidence(
+                            source="static-analysis",
+                            field="code_indicators",
+                            value={"integrity_verified": True},
+                            observed_at=observed_at,
+                        )
+                    ],
+                )
+            ], []
+
+    gate = make_gate()
+    gate.static_inspector = StaticInspector()
+    head = lockfile({"node_modules/tool": {"version": "1.0.0"}}, {"tool": "1.0.0"})
+    report = asyncio.run(gate.evaluate(head, None, fail_on="high"))
+    assert report.verdict == "fail"
+    assert report.releases[0].findings[0].rule_id == "suspicious-install-time-behavior"

@@ -149,7 +149,7 @@ Implemented rules are `known-vulnerability`, `new-dependency`, `dependency-expan
     "explanation": "Why this was flagged and what to check.",
     "evidence": [
       { "source": "lockfile", "field": "…", "value": "1.2.0", "observed_at": "2026-10-12T10:00:00Z" }
-    ],                              // source: lockfile | npm-registry | osv | registry-contract
+    ],                              // source: lockfile | npm-registry | osv | registry-contract | static-analysis
     "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // "root" = the project, then graph node ids
   }
 ]

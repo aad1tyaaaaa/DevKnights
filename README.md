@@ -479,6 +479,7 @@ All eight phases are implemented and verified. Details are in [progress.md](prog
 - [Architecture](docs/architecture.md)
 - [API contract](docs/api-contract.md)
 - [Development guide](docs/development.md)
+- [Phase 1 advanced threat detection](docs/phase1-threat-detection.md)
 - [Free deployment guide (Vercel + Render + Neon)](deploy.md)
 - [Demo script](docs/demo-script.md)
 - [Marketplace checklist](docs/marketplace-checklist.md)

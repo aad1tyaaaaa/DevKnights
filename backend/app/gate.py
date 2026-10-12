@@ -2,8 +2,8 @@
 
 Compares a pull request's npm lockfile with its base and examines only the releases the PR adds or
 updates: OSV advisories, publisher changes, install scripts, build provenance, deprecation, release
-timing and (when a chain is reachable) Provenyx release anchors. Package code is never downloaded
-or executed.
+timing and (when a chain is reachable) Provenyx release anchors. Optional bounded static inspection
+downloads integrity-verified archives, but package code is never installed or executed.
 
     python -m app.gate --head package-lock.json [--base base-lock.json] [--fail-on high]
                        [--label frontend/package-lock.json] [--markdown report.md] [--json report.json]
@@ -23,11 +23,14 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import ValidationError
 
 from app.blockchain.verify import ReleaseVerifier
 from app.detection.osv import OsvClient
+from app.detection.typosquatting import DEFAULT_TRUSTED_PACKAGES, detect_typosquatting
+from app.detection.static_analysis import StaticAnalysisLimits, StaticArtifactInspector
 from app.detection.rules import (
     _dependency_paths,
     detect_deprecated_releases,
@@ -37,6 +40,7 @@ from app.detection.rules import (
     detect_provenance_regressions,
     detect_publisher_changes,
     detect_unusual_release_timing,
+    correlate_publisher_risk,
     install_scripts,
 )
 from app.graph.comparison import compare_graphs
@@ -74,11 +78,17 @@ class TrustGate:
         osv: OsvClient | None = None,
         verifier: ReleaseVerifier | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        trusted_packages: tuple[str, ...] | list[str] | None = None,
+        static_inspector: StaticArtifactInspector | None = None,
+        static_max_packages: int = 20,
     ) -> None:
         self.registry = registry
         self.osv = osv
         self.verifier = verifier
         self.clock = clock
+        self.trusted_packages = tuple(trusted_packages or DEFAULT_TRUSTED_PACKAGES)
+        self.static_inspector = static_inspector
+        self.static_max_packages = max(1, static_max_packages)
 
     async def evaluate(
         self,
@@ -125,6 +135,36 @@ class TrustGate:
             *detect_provenance_regressions(base, head, observed_at=observed_at),
             *detect_deprecated_releases(head, set(changed_ids), observed_at=observed_at),
         ]
+        base_names = {node.name for node in base.nodes}
+        typo_candidate_ids = {node_id for node_id in changed_ids if head_nodes[node_id].name not in base_names}
+        findings.extend(
+            detect_typosquatting(
+                head,
+                candidate_ids=typo_candidate_ids,
+                observed_at=observed_at,
+                trusted_packages=self.trusted_packages,
+            )
+        )
+        if self.static_inspector is not None and changed_ids:
+            risk_by_id: dict[str, int] = {}
+            for finding in findings:
+                node_id = f"{finding.package}@{finding.version}"
+                risk_by_id[node_id] = max(risk_by_id.get(node_id, 0), finding.priority_score)
+            selected = sorted(
+                changed_ids,
+                key=lambda node_id: (
+                    -risk_by_id.get(node_id, 0),
+                    not head_nodes[node_id].direct,
+                    not bool(head_nodes[node_id].registry.install_scripts),
+                    node_id,
+                ),
+            )[: self.static_max_packages]
+            static_findings, static_warnings = await self.static_inspector.analyze(
+                head, candidate_ids=selected, observed_at=observed_at
+            )
+            findings.extend(static_findings)
+            warnings.extend(static_warnings)
+        findings = correlate_publisher_risk(findings, observed_at=observed_at)
         if comparison.version_changes:
             release_times = await self.registry.fetch_release_times_many(change.name for change in comparison.version_changes)
             findings.extend(detect_unusual_release_timing(base, head, release_times=release_times, observed_at=observed_at))
@@ -295,9 +335,26 @@ def _checks(
     publisher_change = by_rule.get("publisher-change")
     if publisher_change is not None:
         value = publisher_change.evidence[0].value
-        from_finding("publisher-change", f"Publisher changed: {', '.join(value['previous_publishers'])} → {value['current_publisher']}")
+        # Correlation can raise the aggregate finding, but preserve the publisher check's
+        # established medium threshold; the correlated constituent checks carry their own status.
+        by_rule.pop("publisher-change")
+        checks.append(
+            GateCheck(
+                status=_severity_status("medium", fail_on),
+                label=f"Publisher changed: {', '.join(value['previous_publishers'])} → {value['current_publisher']}",
+            )
+        )
     elif meta.publisher:
         checks.append(GateCheck(status="pass" if change == "updated" else "info", label=f"{'Same publisher' if change == 'updated' else 'Published by'} {meta.publisher}"))
+    maintainer_change = by_rule.get("maintainer-change")
+    if maintainer_change is not None:
+        value = maintainer_change.evidence[0].value
+        from_finding(
+            "maintainer-change",
+            f"Maintainer snapshot changed (+{len(value.get('added_maintainers', []))}/-{len(value.get('removed_maintainers', []))})",
+        )
+    elif change == "updated" and meta.maintainers is None:
+        checks.append(GateCheck(status="info", label="Historical maintainer comparison unavailable"))
 
     # Provenance
     if not from_finding("provenance-removed", "Build provenance missing (previous version had it)"):
@@ -398,7 +455,8 @@ def render_markdown(report: GateReport) -> str:
         lines.append("</details>")
         lines.append("")
     lines.append(
-        "<sub>Provenyx never downloads or executes package code. Findings are investigation signals, not verdicts; "
+        "<sub>Provenyx never installs or executes package code; optional static inspection only reads verified archives. "
+        "Findings are investigation signals, not verdicts; "
         "a matching release anchor means unchanged from an approved record, not safe.</sub>"
     )
     markdown = "\n".join(lines)
@@ -466,7 +524,34 @@ def main(argv: list[str] | None = None) -> int:
             registry,
         )
 
-    report = asyncio.run(TrustGate(registry, osv=osv, verifier=verifier).evaluate(head, base, fail_on=args.fail_on, label=args.label))
+    allowed_hosts = settings.static_analysis_allowed_host_set
+    if registry_host := urlparse(settings.npm_registry_url).hostname:
+        allowed_hosts.add(registry_host.lower())
+    static_inspector = (
+        StaticArtifactInspector(
+            allowed_hosts=allowed_hosts,
+            limits=StaticAnalysisLimits(
+                max_archive_bytes=settings.static_analysis_max_archive_bytes,
+                max_decompressed_bytes=settings.static_analysis_max_decompressed_bytes,
+                max_files=settings.static_analysis_max_files,
+                max_file_bytes=settings.static_analysis_max_file_bytes,
+                timeout_seconds=settings.static_analysis_timeout_seconds,
+                concurrency=settings.static_analysis_concurrency,
+            ),
+        )
+        if settings.static_analysis_enabled
+        else None
+    )
+    report = asyncio.run(
+        TrustGate(
+            registry,
+            osv=osv,
+            verifier=verifier,
+            trusted_packages=settings.typosquat_trusted_package_list,
+            static_inspector=static_inspector,
+            static_max_packages=settings.static_analysis_max_packages,
+        ).evaluate(head, base, fail_on=args.fail_on, label=args.label)
+    )
     if args.markdown:
         Path(args.markdown).write_text(report.markdown, encoding="utf-8")
     if args.json:

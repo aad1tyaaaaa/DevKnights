@@ -5,6 +5,7 @@ import threading
 import time
 from typing import Annotated
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -14,6 +15,7 @@ from pydantic import ValidationError
 from app import __version__
 from app.detection.ai_ranker import GeminiFindingRanker
 from app.detection.osv import OsvClient
+from app.detection.static_analysis import StaticAnalysisLimits, StaticArtifactInspector
 from app.core.config import settings
 from app.core.security import limit_submissions
 from app.gate import TrustGate
@@ -62,6 +64,24 @@ finding_ranker = (
     if settings.ai_ranking_enabled and settings.gemini_api_key is not None
     else None
 )
+static_allowed_hosts = settings.static_analysis_allowed_host_set
+if registry_host := urlparse(settings.npm_registry_url).hostname:
+    static_allowed_hosts.add(registry_host.lower())
+static_inspector = (
+    StaticArtifactInspector(
+        allowed_hosts=static_allowed_hosts,
+        limits=StaticAnalysisLimits(
+            max_archive_bytes=settings.static_analysis_max_archive_bytes,
+            max_decompressed_bytes=settings.static_analysis_max_decompressed_bytes,
+            max_files=settings.static_analysis_max_files,
+            max_file_bytes=settings.static_analysis_max_file_bytes,
+            timeout_seconds=settings.static_analysis_timeout_seconds,
+            concurrency=settings.static_analysis_concurrency,
+        ),
+    )
+    if settings.static_analysis_enabled
+    else None
+)
 scan_service = ScanService(
     ScanRepository(settings.database_url),
     NpmRegistryClient(
@@ -77,6 +97,9 @@ scan_service = ScanService(
         retries=settings.osv_retries,
     ),
     finding_ranker=finding_ranker,
+    trusted_packages=settings.typosquat_trusted_package_list,
+    static_inspector=static_inspector,
+    static_max_packages=settings.static_analysis_max_packages,
 )
 github_service = GitHubService(settings)
 
@@ -92,7 +115,14 @@ release_verifier = ReleaseVerifier(
 )
 
 
-trust_gate = TrustGate(scan_service.registry, osv=scan_service.osv, verifier=release_verifier)
+trust_gate = TrustGate(
+    scan_service.registry,
+    osv=scan_service.osv,
+    verifier=release_verifier,
+    trusted_packages=settings.typosquat_trusted_package_list,
+    static_inspector=static_inspector,
+    static_max_packages=settings.static_analysis_max_packages,
+)
 
 
 def get_scan_service() -> ScanService:

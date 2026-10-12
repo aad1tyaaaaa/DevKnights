@@ -8,11 +8,38 @@ from fastapi.testclient import TestClient
 
 from app.api.routes import get_scan_service
 from app.detection.osv import OsvClient
+from app.models.schemas import Finding, FindingEvidence
 from tests.fakes import osv_transport
 from app.main import app
 from app.models.database import ScanRepository
 from app.parsers.npm_registry import NpmRegistryClient
 from app.services import ScanService
+
+
+class StubStaticInspector:
+    async def analyze(self, graph, *, candidate_ids, observed_at):
+        node = next(node for node in graph.nodes if node.id in candidate_ids)
+        return [
+            Finding(
+                id="static-finding",
+                rule_id="suspicious-install-time-behavior",
+                package=node.name,
+                version=node.version,
+                severity="high",
+                confidence="medium",
+                priority_score=88,
+                title="Suspicious install-time behavior",
+                explanation="Synthetic integration finding; package code was not executed.",
+                evidence=[
+                    FindingEvidence(
+                        source="static-analysis",
+                        field="code_indicators",
+                        value={"integrity_verified": True},
+                        observed_at=observed_at,
+                    )
+                ],
+            )
+        ], []
 
 
 def test_existing_scan_database_adds_owner_column(tmp_path: Path) -> None:
@@ -400,3 +427,34 @@ def test_publisher_change_flows_through_findings_api(tmp_path: Path):
     assert findings[0]["rule_id"] == "publisher-change"
     assert findings[0]["evidence"][0]["value"]["previous_publishers"] == ["original-owner"]
     assert findings[0]["evidence"][0]["value"]["current_publisher"] == "new-owner"
+
+
+def test_typosquatting_and_static_findings_flow_through_existing_api_contract(tmp_path: Path):
+    offline = NpmRegistryClient(transport=httpx.MockTransport(lambda request: httpx.Response(404)), retries=0)
+    service = ScanService(
+        ScanRepository(f"sqlite:///{tmp_path / 'advanced.db'}"),
+        offline,
+        static_inspector=StubStaticInspector(),
+    )
+    app.dependency_overrides[get_scan_service] = lambda: service
+    with TestClient(app) as client:
+        scan_id = client.post(
+            "/api/scans",
+            json={
+                "lockfile": {
+                    "lockfileVersion": 3,
+                    "packages": {
+                        "": {"dependencies": {"expres": "1.0.0"}},
+                        "node_modules/expres": {"version": "1.0.0"},
+                    },
+                }
+            },
+        ).json()["scan_id"]
+        findings = client.get(f"/api/scans/{scan_id}/findings").json()
+    app.dependency_overrides.clear()
+
+    assert {finding["rule_id"] for finding in findings} == {
+        "possible-typosquatting",
+        "suspicious-install-time-behavior",
+    }
+    assert all({"severity", "confidence", "priority_score", "evidence"} <= finding.keys() for finding in findings)

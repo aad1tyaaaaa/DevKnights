@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     npm_registry_concurrency: int = 10
     npm_registry_timeout_seconds: float = 5.0
     npm_registry_retries: int = 2
+    # Comma-separated additions/replacement for the built-in popular-package reference set.
+    # Empty keeps the curated built-in defaults.
+    typosquat_trusted_packages: str = ""
+    # Source inspection is opt-in because it downloads package archives (it never executes them).
+    static_analysis_enabled: bool = False
+    static_analysis_allowed_hosts: str = "registry.npmjs.org"
+    static_analysis_max_packages: int = 20
+    static_analysis_max_archive_bytes: int = 8 * 1024 * 1024
+    static_analysis_max_decompressed_bytes: int = 32 * 1024 * 1024
+    static_analysis_max_files: int = 2_000
+    static_analysis_max_file_bytes: int = 512 * 1024
+    static_analysis_timeout_seconds: float = 8.0
+    static_analysis_concurrency: int = 3
     osv_api_url: str = "https://api.osv.dev"
     osv_concurrency: int = 10
     osv_timeout_seconds: float = 5.0
@@ -94,6 +107,15 @@ class Settings(BaseSettings):
     @property
     def github_auth_configured(self) -> bool:
         return bool(self.github_client_id and self.github_client_secret and self.github_session_secret)
+
+    @property
+    def typosquat_trusted_package_list(self) -> list[str] | None:
+        values = [value.strip() for value in self.typosquat_trusted_packages.split(",") if value.strip()]
+        return values or None
+
+    @property
+    def static_analysis_allowed_host_set(self) -> set[str]:
+        return {value.strip().lower() for value in self.static_analysis_allowed_hosts.split(",") if value.strip()}
 
 
 settings = Settings()

@@ -19,10 +19,13 @@ class RegistryMetadata:
     deprecated: str | None = None
     published_at: str | None = None
     dist_integrity: str | None = None
+    tarball_url: str | None = None
     # Lifecycle scripts npm runs on install; None when the metadata was unavailable.
     install_scripts: tuple[str, ...] | None = None
     # Whether npm holds a build provenance attestation for this release.
     has_provenance: bool | None = None
+    # This is an observed snapshot, not an npm-provided ownership timeline.
+    maintainers: tuple[str, ...] | None = None
     error: str | None = None
 
 
@@ -158,6 +161,20 @@ def _metadata_from_payload(package: str, version: str, payload: dict[str, Any]) 
     scripts = payload.get("scripts")
     scripts_data = scripts if isinstance(scripts, dict) else {}
     attestations = dist_data.get("attestations")
+    maintainers = payload.get("maintainers")
+    maintainer_names = (
+        tuple(
+            sorted(
+                {
+                    name
+                    for item in maintainers
+                    if isinstance(item, dict) and (name := _optional_string(item.get("name")))
+                }
+            )
+        )
+        if isinstance(maintainers, list)
+        else None
+    )
     return RegistryMetadata(
         package=package,
         version=version,
@@ -168,8 +185,10 @@ def _metadata_from_payload(package: str, version: str, payload: dict[str, Any]) 
         deprecated=_optional_string(payload.get("deprecated")),
         published_at=None,
         dist_integrity=_optional_string(dist_data.get("integrity")),
+        tarball_url=_optional_string(dist_data.get("tarball")),
         install_scripts=tuple(name for name in INSTALL_LIFECYCLE_SCRIPTS if _optional_string(scripts_data.get(name))),
         has_provenance=isinstance(attestations, dict) and isinstance(attestations.get("provenance"), dict),
+        maintainers=maintainer_names,
     )
 
 

@@ -7,6 +7,8 @@ from app.detection.rules import (
     detect_known_vulnerabilities,
     detect_publisher_changes,
     detect_unusual_release_timing,
+    detect_install_script_changes,
+    correlate_publisher_risk,
 )
 from app.models.schemas import GraphEdge, GraphNode, RegistryMetadataResponse, ScanGraph
 
@@ -15,7 +17,15 @@ OBSERVED_AT = datetime(2026, 10, 12, tzinfo=timezone.utc)
 UNKNOWN = RegistryMetadataResponse(status="unavailable", error="not fetched")
 
 
-def node(name: str, version: str, *, direct: bool = False, publisher: str | None = None) -> GraphNode:
+def node(
+    name: str,
+    version: str,
+    *,
+    direct: bool = False,
+    publisher: str | None = None,
+    maintainers: list[str] | None = None,
+    install_scripts: list[str] | None = None,
+) -> GraphNode:
     return GraphNode(
         id=f"{name}@{version}",
         name=name,
@@ -23,8 +33,13 @@ def node(name: str, version: str, *, direct: bool = False, publisher: str | None
         direct=direct,
         lockfile_paths=[f"node_modules/{name}"],
         registry=(
-            RegistryMetadataResponse(status="available", publisher=publisher)
-            if publisher is not None
+            RegistryMetadataResponse(
+                status="available",
+                publisher=publisher,
+                maintainers=maintainers,
+                install_scripts=install_scripts,
+            )
+            if publisher is not None or maintainers is not None or install_scripts is not None
             else UNKNOWN
         ),
     )
@@ -130,6 +145,39 @@ def test_publisher_change_does_not_guess_when_evidence_is_missing_or_unchanged()
 
     assert detect_publisher_changes(baseline, missing, observed_at=OBSERVED_AT) == []
     assert detect_publisher_changes(baseline, unchanged, observed_at=OBSERVED_AT) == []
+
+
+def test_maintainer_change_uses_snapshots_and_does_not_invent_missing_history():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True, publisher="owner", maintainers=["alice"])])
+    current = graph("current", [node("pkg", "2.0.0", direct=True, publisher="owner", maintainers=["alice", "bob"])])
+    missing = graph("missing", [node("pkg", "2.0.0", direct=True, publisher="owner")])
+
+    finding = detect_publisher_changes(baseline, current, observed_at=OBSERVED_AT)[0]
+    assert finding.rule_id == "maintainer-change"
+    assert finding.confidence == "medium"
+    assert finding.evidence[0].value["added_maintainers"] == ["bob"]
+    assert "authoritative ownership timeline" in finding.evidence[0].value["limitation"]
+    assert detect_publisher_changes(baseline, missing, observed_at=OBSERVED_AT) == []
+
+
+def test_publisher_change_correlation_is_bounded_and_not_duplicated():
+    baseline = graph(
+        "baseline",
+        [node("pkg", "1.0.0", direct=True, publisher="old", install_scripts=[])],
+    )
+    current = graph(
+        "current",
+        [node("pkg", "2.0.0", direct=True, publisher="new", install_scripts=["postinstall"])],
+    )
+    findings = [
+        *detect_publisher_changes(baseline, current, observed_at=OBSERVED_AT),
+        *detect_install_script_changes(baseline, current, observed_at=OBSERVED_AT),
+    ]
+    correlated = correlate_publisher_risk(findings, observed_at=OBSERVED_AT)
+    publisher = next(item for item in correlated if item.rule_id == "publisher-change")
+    assert publisher.priority_score == 70
+    assert publisher.evidence[-1].value["signals"] == ["install-script-added"]
+    assert sum(item.rule_id == "publisher-change" for item in correlated) == 1
 
 
 def test_finding_ids_and_order_are_deterministic():

@@ -121,8 +121,10 @@ class RegistryMetadataResponse(BaseModel):
     deprecated: str | None = None
     published_at: str | None = None
     dist_integrity: str | None = None
+    tarball_url: str | None = None
     install_scripts: list[str] | None = None
     has_provenance: bool | None = None
+    maintainers: list[str] | None = None
     error: str | None = None
 
 
@@ -170,7 +172,7 @@ class ScanComparisonResponse(BaseModel):
 
 
 class FindingEvidence(BaseModel):
-    source: Literal["npm-registry", "lockfile", "osv", "registry-contract"]
+    source: Literal["npm-registry", "lockfile", "osv", "registry-contract", "static-analysis"]
     field: str
     value: Any
     observed_at: datetime

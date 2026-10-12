@@ -247,44 +247,146 @@ def detect_publisher_changes(
             if (node := baseline_nodes.get((change.name, version))) is not None
             and node.registry.publisher is not None
         }
-        if not previous_publishers:
-            continue
+        previous_maintainer_snapshots = [
+            set(node.registry.maintainers)
+            for version in change.from_versions
+            if (node := baseline_nodes.get((change.name, version))) is not None
+            and node.registry.maintainers is not None
+        ]
         for version in change.to_versions:
             node = current_nodes.get((change.name, version))
-            if node is None or node.registry.publisher is None or node.registry.publisher in previous_publishers:
+            if node is None:
                 continue
+            publisher_changed = bool(
+                previous_publishers
+                and node.registry.publisher is not None
+                and node.registry.publisher not in previous_publishers
+            )
+            current_maintainers = set(node.registry.maintainers) if node.registry.maintainers is not None else None
+            maintainers_changed = bool(
+                previous_maintainer_snapshots
+                and current_maintainers is not None
+                and all(current_maintainers != previous for previous in previous_maintainer_snapshots)
+            )
+            if not publisher_changed and not maintainers_changed:
+                continue
+            previous_maintainers = sorted(set().union(*previous_maintainer_snapshots)) if previous_maintainer_snapshots else []
+            added_maintainers = sorted((current_maintainers or set()) - set(previous_maintainers))
+            removed_maintainers = sorted(set(previous_maintainers) - (current_maintainers or set()))
+            rule_id = "publisher-change" if publisher_changed else "maintainer-change"
+            evidence = []
+            if publisher_changed:
+                evidence.append(
+                    FindingEvidence(
+                        source="npm-registry",
+                        field="publisher_change",
+                        value={
+                            "from_versions": list(change.from_versions),
+                            "previous_publishers": sorted(previous_publishers),
+                            "to_version": version,
+                            "current_publisher": node.registry.publisher,
+                        },
+                        observed_at=observed_at,
+                    )
+                )
+            if maintainers_changed:
+                evidence.append(
+                    FindingEvidence(
+                        source="npm-registry",
+                        field="maintainer_snapshot_change",
+                        value={
+                            "from_versions": list(change.from_versions),
+                            "previous_maintainers": previous_maintainers,
+                            "current_maintainers": sorted(current_maintainers or set()),
+                            "added_maintainers": added_maintainers,
+                            "removed_maintainers": removed_maintainers,
+                            "limitation": "Compared persisted release snapshots; npm does not provide an authoritative ownership timeline.",
+                        },
+                        observed_at=observed_at,
+                    )
+                )
             findings.append(
                 Finding(
-                    id=_finding_id(current.scan_id, "publisher-change", node.id),
-                    rule_id="publisher-change",
+                    id=_finding_id(current.scan_id, rule_id, node.id),
+                    rule_id=rule_id,
                     package=node.name,
                     version=node.version,
                     severity="medium",
-                    confidence="high",
-                    priority_score=60,
-                    title="Release publisher changed",
+                    confidence="high" if publisher_changed else "medium",
+                    priority_score=60 if publisher_changed else 55,
+                    title="Release publisher changed" if publisher_changed else "Observed maintainer list changed",
                     explanation=(
-                        f"npm identifies {node.registry.publisher!r} as the publisher of {node.id}, while the "
-                        f"baseline version was published by {', '.join(repr(value) for value in sorted(previous_publishers))}. "
-                        "Publisher changes can be legitimate, but should be verified during an upgrade."
-                    ),
-                    evidence=[
-                        FindingEvidence(
-                            source="npm-registry",
-                            field="publisher_change",
-                            value={
-                                "from_versions": list(change.from_versions),
-                                "previous_publishers": sorted(previous_publishers),
-                                "to_version": version,
-                                "current_publisher": node.registry.publisher,
-                            },
-                            observed_at=observed_at,
+                        (
+                            f"npm identifies {node.registry.publisher!r} as the publisher of {node.id}, while the "
+                            f"baseline version was published by {', '.join(repr(value) for value in sorted(previous_publishers))}. "
+                            "Publisher changes can be legitimate, but should be verified during an upgrade."
+                            + (f" The observed maintainer snapshot also added {added_maintainers} and removed {removed_maintainers}." if maintainers_changed else "")
                         )
-                    ],
+                        if publisher_changed
+                        else (
+                            f"The persisted npm metadata snapshot for {node.id} has a different maintainer list from "
+                            "the baseline release. This can be legitimate and is not an authoritative npm ownership timeline."
+                        )
+                    ),
+                    evidence=evidence,
                     paths=_dependency_paths(current, node.id),
                 )
             )
     return findings
+
+
+def correlate_publisher_risk(findings: list[Finding], *, observed_at: datetime) -> list[Finding]:
+    """Raise one publisher-change finding when independent signals affect the same release."""
+    by_release: dict[tuple[str, str], set[str]] = {}
+    for finding in findings:
+        by_release.setdefault((finding.package, finding.version), set()).add(finding.rule_id)
+    weights = {
+        "install-script-added": 10,
+        "provenance-removed": 8,
+        "dependency-expansion": 5,
+        "suspicious-install-time-behavior": 15,
+        "possible-credential-exfiltration": 15,
+        "potential-credential-access": 8,
+    }
+    correlated: list[Finding] = []
+    for finding in findings:
+        if finding.rule_id != "publisher-change":
+            correlated.append(finding)
+            continue
+        rules = by_release.get((finding.package, finding.version), set())
+        signals = sorted(rule for rule in rules if rule in weights)
+        if not signals:
+            correlated.append(finding)
+            continue
+        score = min(95, finding.priority_score + sum(weights[signal] for signal in signals))
+        evidence = [
+            *finding.evidence,
+            FindingEvidence(
+                source="npm-registry",
+                field="correlated_release_risk",
+                value={
+                    "base_priority": finding.priority_score,
+                    "signals": signals,
+                    "signal_weights": {signal: weights[signal] for signal in signals},
+                    "bounded_priority": score,
+                    "scoring_limit": 95,
+                },
+                observed_at=observed_at,
+            ),
+        ]
+        correlated.append(
+            finding.model_copy(
+                update={
+                    "severity": "high" if score >= 80 else finding.severity,
+                    "priority_score": score,
+                    "title": "Publisher change accompanied by additional risk signals",
+                    "explanation": finding.explanation
+                    + f" The same release also triggered: {', '.join(signals)}; review these signals together.",
+                    "evidence": evidence,
+                }
+            )
+        )
+    return correlated
 
 
 def detect_install_script_changes(

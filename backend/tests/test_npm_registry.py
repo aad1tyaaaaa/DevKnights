@@ -18,7 +18,11 @@ def test_registry_client_selects_real_metadata_and_encodes_scoped_names():
                 "description": "Scoped package",
                 "license": "MIT",
                 "_npmUser": {"name": "release-publisher", "email": "private@example.test"},
-                "dist": {"integrity": "sha512-registry"},
+                "dist": {
+                    "integrity": "sha512-registry",
+                    "tarball": "https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz",
+                },
+                "maintainers": [{"name": "release-publisher"}, {"name": "second-maintainer"}],
             },
         )
 
@@ -29,6 +33,8 @@ def test_registry_client_selects_real_metadata_and_encodes_scoped_names():
     assert result.publisher == "release-publisher"
     assert result.description == "Scoped package"
     assert result.dist_integrity == "sha512-registry"
+    assert result.tarball_url == "https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz"
+    assert result.maintainers == ("release-publisher", "second-maintainer")
     assert seen_paths == ["/%40scope%2Fpkg/1.2.3"]
 
 
