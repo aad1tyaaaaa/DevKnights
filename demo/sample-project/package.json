@@ -1,0 +1,9 @@
+{
+  "name": "provenyx-sample-project",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny sample project for trying Provenyx. Do not run npm install here; Provenyx only reads the lockfile.",
+  "dependencies": {
+    "ms": "2.1.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "provenyx-contracts",
+  "version": "0.1.0",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "compile": "hardhat build",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.ts"
+  },
+  "type": "module",
+  "private": "true",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@types/node": "^22.20.5",
+    "hardhat": "^3.19.0",
+    "typescript": "~5.9.3",
+    "viem": "^2.57.4"
+  }
+}

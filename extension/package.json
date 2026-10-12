@@ -1,0 +1,130 @@
+{
+  "name": "provenyx-security",
+  "displayName": "Provenyx Security",
+  "description": "Software dependency trust and supply-chain security analysis",
+  "version": "0.1.0",
+  "publisher": "your-publisher-id",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "security",
+    "supply chain",
+    "npm",
+    "dependencies",
+    "package-lock"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:package-lock.json"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "provenyx.scanDependencies",
+        "title": "Scan Dependencies",
+        "category": "Provenyx",
+        "icon": "$(play)"
+      },
+      {
+        "command": "provenyx.showFindings",
+        "title": "Show Findings",
+        "category": "Provenyx"
+      },
+      {
+        "command": "provenyx.openDashboard",
+        "title": "Open Dashboard",
+        "category": "Provenyx",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "provenyx.checkBackend",
+        "title": "Check Backend Connection",
+        "category": "Provenyx",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "provenyx",
+          "title": "Provenyx",
+          "icon": "images/sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "provenyx": [
+        {
+          "id": "provenyx.findings",
+          "name": "Findings"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "provenyx.scanDependencies",
+          "when": "view == provenyx.findings",
+          "group": "navigation@1"
+        },
+        {
+          "command": "provenyx.checkBackend",
+          "when": "view == provenyx.findings",
+          "group": "navigation@2"
+        },
+        {
+          "command": "provenyx.openDashboard",
+          "when": "view == provenyx.findings",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Provenyx",
+      "properties": {
+        "provenyx.apiBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "format": "uri",
+          "markdownDescription": "Base URL of the Provenyx API. Lockfiles are only sent here after you confirm each scan. Defaults to the local development backend."
+        },
+        "provenyx.dashboardUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "format": "uri",
+          "markdownDescription": "URL opened by **Provenyx: Open Dashboard**. Defaults to the local web dashboard."
+        },
+        "provenyx.autoScanEnabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When a `package-lock.json` changes, offer to scan it. You are still asked to confirm before anything is sent to the API."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "check-types": "tsc --noEmit",
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "npm run check-types && node esbuild.js --production",
+    "vsix": "vsce package --no-dependencies --allow-missing-repository",
+    "test:smoke": "npm run compile && node test/runSmoke.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3"
+  }
+}

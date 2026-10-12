@@ -1,0 +1,15 @@
+{
+  "name": "provenyx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provenyx Security monorepo: VS Code extension, FastAPI backend, Next.js dashboard, Hardhat contracts",
+  "scripts": {
+    "install:all": "npm --prefix extension install && npm --prefix frontend install && npm --prefix contracts install",
+    "build:extension": "npm --prefix extension run compile",
+    "package:extension": "npm --prefix extension run vsix",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "compile:contracts": "npm --prefix contracts run compile",
+    "test:contracts": "npm --prefix contracts test"
+  }
+}

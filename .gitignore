@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+extension/dist/
+extension/*.vsix
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+*.tsbuildinfo
+contracts/artifacts/
+contracts/cache/
+contracts/types/
+contracts/coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.db
+*.sqlite3
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode-test/
