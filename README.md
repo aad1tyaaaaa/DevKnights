@@ -16,6 +16,7 @@ It has three parts: a **VS Code extension** (the main product), a **web dashboar
 - [How it works](#how-it-works)
 - [Features](#features)
 - [Detection rules](#detection-rules)
+- [Pull request trust gate](#pull-request-trust-gate)
 - [Release verification on the blockchain](#release-verification-on-the-blockchain)
 - [Safety and privacy principles](#safety-and-privacy-principles)
 - [How Provenyx compares](#how-provenyx-compares)
@@ -127,10 +128,63 @@ Known-vulnerability checks run on the first scan. Change-based rules require a *
 | `unusual-release-timing` | An upgraded version was published within 1 hour of its predecessor (npm release times) | low | medium | 45 |
 | `publisher-change` | npm identifies a different release-specific publisher for the upgraded version | medium | high | 60 |
 | `known-vulnerability` | OSV matches the exact installed npm package and version | OSV-derived | high | 55–95 |
+| `install-script-added` | An upgraded version runs an install lifecycle script (`preinstall`/`install`/`postinstall`) its predecessor did not | high | high | 85 |
+| `install-script-present` | A newly added package runs an install lifecycle script | medium | high | 65 |
+| `provenance-removed` | The previous version had an npm build provenance attestation and the upgrade does not | medium | medium | 70 |
+| `deprecated-package` | npm marks a release a pull request adds or updates as deprecated (trust gate only) | low | high | 40 |
 
 Severity (impact), confidence (how sure the rule is) and priority (0–100, for ordering) are independent. Every finding has at least one piece of evidence: its source (`lockfile`, `npm-registry`), the field, the value, and when it was observed. Findings are **leads to investigate, not proof of compromise**, and a normal upgrade is not flagged as high risk.
 
+Install scripts come from npm registry metadata, falling back to the lockfile's own `hasInstallScript` flag when the registry has no record of a release.
+
 Gemini reranking is optional and disabled by default. It receives only generated finding summaries, never lockfiles, dependency graphs or raw evidence. Both Gemini and deterministic scores remain visible; timeouts or invalid responses retain deterministic order.
+
+## Pull request trust gate
+
+The trust gate turns analysis into prevention: on every pull request that changes a `package-lock.json`, it compares the PR's lockfile with the base branch, examines **only the releases the PR adds or updates**, and posts an explainable report with a pass, warning or fail status check.
+
+```text
+❌ Dependency Trust Check: FAILED
+
+✗ express 4.18.2 → 4.18.3
+  ✓ No known vulnerabilities
+  ✗ New postinstall script introduced
+  ⚠ Publisher changed: alice → mallory
+  ⚠ Build provenance missing (previous version had it)
+  Blast radius: shop-app → express
+```
+
+Each changed release is checked for OSV advisories, install scripts, publisher changes, build provenance, deprecation, release timing, new dependencies and, when a chain is configured, its Provenyx release anchor. Registry metadata is fetched only for changed releases and their predecessors, so large lockfiles stay fast. No package code is downloaded or executed.
+
+Use it in any repository:
+
+```yaml
+# .github/workflows/dependency-trust-gate.yml
+on:
+  pull_request:
+    paths: ['**/package-lock.json']
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  trust-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aad1tyaaaaa/DevKnights@main
+        with:
+          lockfile: package-lock.json   # repository-relative path
+          fail-on: high                 # high | medium | low | never
+```
+
+A release fails when it has a finding at or above `fail-on`, or when it differs from its anchored release record; lower-severity findings produce a warning. A missing anchor is reported as an evidence gap, never a failure. The same check runs locally or in any CI:
+
+```bash
+cd backend
+python -m app.gate --base base-lock.json --head ../package-lock.json --markdown report.md   # exit 1 = fail
+```
+
+…or over HTTP with `POST /api/gate`. This repository dogfoods it in [.github/workflows/dependency-trust-gate.yml](.github/workflows/dependency-trust-gate.yml).
 
 ## Release verification on the blockchain
 
@@ -297,6 +351,7 @@ The presenter script and fallbacks are in [docs/demo-script.md](docs/demo-script
 | `GET /api/scans/{id}/findings` | Evidence-backed findings |
 | `GET /api/scans/{id}/compare/{baseline_id}` | Diff between two scans |
 | `POST /api/releases/verify` | `match`, `mismatch`, `no_record` or `unavailable` |
+| `POST /api/gate` | Pull request trust gate: base vs. head lockfile → pass / warn / fail report |
 
 The full schemas are in [docs/api-contract.md](docs/api-contract.md). Interactive docs are at `http://localhost:8000/docs`.
 

@@ -1,0 +1,114 @@
+name: Provenyx Dependency Trust Gate
+description: Explainable trust check for npm lockfile changes in pull requests. Never downloads or executes package code.
+author: Provenyx
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  lockfile:
+    description: Repository-relative path of the package-lock.json to check.
+    default: package-lock.json
+  fail-on:
+    description: Lowest finding severity that fails the check (high, medium, low, never).
+    default: high
+  comment:
+    description: Post or update a pull request comment with the report.
+    default: 'true'
+  anchor-rpc-url:
+    description: JSON-RPC URL of a chain with the Provenyx ReleaseRegistry. Leave empty to skip anchor verification.
+    default: ''
+  anchor-address:
+    description: ReleaseRegistry contract address on that chain.
+    default: ''
+  github-token:
+    description: Token used to comment on the pull request.
+    default: ${{ github.token }}
+
+outputs:
+  verdict:
+    description: pass, warn or fail
+    value: ${{ steps.gate.outputs.verdict }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install Provenyx
+      shell: bash
+      run: python -m pip install --quiet --disable-pip-version-check -r "$GITHUB_ACTION_PATH/backend/requirements.txt"
+
+    - name: Read the base lockfile
+      shell: bash
+      env:
+        LOCKFILE: ${{ inputs.lockfile }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        out="$RUNNER_TEMP/provenyx"
+        mkdir -p "$out"
+        : > "$out/base.json"
+        if [ -n "$BASE_SHA" ]; then
+          git fetch --no-tags --depth=1 origin "$BASE_SHA" >/dev/null 2>&1 || true
+          # A missing file means the PR adds the lockfile; the gate then treats every release as new.
+          git show "$BASE_SHA:$LOCKFILE" > "$out/base.json" 2>/dev/null || : > "$out/base.json"
+        fi
+
+    - name: Run the trust gate
+      id: gate
+      shell: bash
+      working-directory: ${{ github.action_path }}/backend
+      env:
+        LOCKFILE: ${{ inputs.lockfile }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        PROVENYX_REGISTRY_RPC_URL: ${{ inputs.anchor-rpc-url }}
+        PROVENYX_REGISTRY_ADDRESS: ${{ inputs.anchor-address }}
+      run: |
+        out="$RUNNER_TEMP/provenyx"
+        anchors=()
+        [ -z "$PROVENYX_REGISTRY_RPC_URL" ] && anchors=(--no-anchors)
+        set +e
+        python -m app.gate --head "$GITHUB_WORKSPACE/$LOCKFILE" --base "$out/base.json" \
+          --fail-on "$FAIL_ON" --label "$LOCKFILE" \
+          --markdown "$out/report.md" --json "$out/report.json" "${anchors[@]}"
+        status=$?
+        set -e
+        [ "$status" -eq 2 ] && exit 2  # invalid lockfile
+        cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Comment on the pull request
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs')
+          const dir = `${process.env.RUNNER_TEMP}/provenyx`
+          const body = fs.readFileSync(`${dir}/report.md`, 'utf8')
+          const report = JSON.parse(fs.readFileSync(`${dir}/report.json`, 'utf8'))
+          const marker = body.split('\n')[0]
+          const { owner, repo } = context.repo
+          const issue_number = context.payload.pull_request.number
+          try {
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 })
+            const existing = comments.find((comment) => comment.body?.startsWith(marker))
+            const changed = report.releases.length + report.removed_packages.length > 0
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body })
+            } else if (changed) {
+              // Lockfiles this PR did not change get no comment, so multi-lockfile repos stay quiet.
+              await github.rest.issues.createComment({ owner, repo, issue_number, body })
+            }
+          } catch (error) {
+            // Fork PRs get a read-only token; the job summary still has the report.
+            core.warning(`Could not comment on the pull request: ${error.message}`)
+          }
+
+    - name: Enforce the verdict
+      if: steps.gate.outputs.verdict == 'fail'
+      shell: bash
+      run: |
+        echo "::error title=Dependency trust check failed::${{ inputs.lockfile }} has releases that fail the trust gate. See the report in the job summary."
+        exit 1

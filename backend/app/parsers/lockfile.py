@@ -20,6 +20,8 @@ class ParsedPackage:
     resolved: str | None = None
     integrity: str | None = None
     dependency_groups: dict[str, dict[str, str]] = field(default_factory=dict)
+    # npm records `hasInstallScript: true` for packages with install lifecycle scripts (lockfile v2+).
+    has_install_script: bool = False
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,7 @@ def _parse_modern_lockfile(lockfile: Mapping[str, Any], lockfile_version: int) -
                 resolved=_optional_string(raw_entry.get("resolved")),
                 integrity=_optional_string(raw_entry.get("integrity")),
                 dependency_groups=_dependency_groups(raw_entry),
+                has_install_script=_has_install_script(raw_entry),
             )
         )
 
@@ -161,6 +164,13 @@ def _package_name(path: str, entry: Mapping[str, Any]) -> str | None:
     if marker not in path:
         return None
     return path.rsplit(marker, 1)[1] or None
+
+
+def _has_install_script(entry: Mapping[str, Any]) -> bool:
+    if entry.get("hasInstallScript") is True:
+        return True
+    scripts = entry.get("scripts")
+    return isinstance(scripts, Mapping) and any(scripts.get(name) for name in ("preinstall", "install", "postinstall"))
 
 
 def _optional_string(value: Any) -> str | None:

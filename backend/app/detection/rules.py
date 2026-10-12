@@ -109,8 +109,19 @@ def detect_graph_changes(
             )
         )
 
+    # Compare relationships by package name: when express@4.18.2 becomes express@4.18.3 every edge has a
+    # new node id, but only dependencies the package did not have before are an expansion.
+    baseline_names_by_id = {node.id: node.name for node in baseline.nodes}
+    current_names_by_id = {node.id: node.name for node in current.nodes}
+    baseline_relationships = {
+        (baseline_names_by_id.get(edge.source, edge.source), baseline_names_by_id.get(edge.target, edge.target), edge.type)
+        for edge in baseline.edges
+    }
     added_edges_by_source: dict[str, list[dict[str, str]]] = {}
     for edge in comparison.added_edges:
+        relationship = (current_names_by_id.get(edge.source, edge.source), current_names_by_id.get(edge.target, edge.target), edge.type)
+        if relationship in baseline_relationships:
+            continue
         added_edges_by_source.setdefault(edge.source, []).append(
             {"from": edge.source, "to": edge.target, "type": edge.type}
         )
@@ -269,6 +280,214 @@ def detect_publisher_changes(
                     paths=_dependency_paths(current, node.id),
                 )
             )
+    return findings
+
+
+def detect_install_script_changes(
+    baseline: ScanGraph,
+    current: ScanGraph,
+    *,
+    observed_at: datetime,
+) -> list[Finding]:
+    """Flag releases that run lifecycle scripts on install when their predecessor did not.
+
+    Install scripts execute arbitrary code on every `npm install`, so gaining one in a patch or
+    minor update is one of the strongest supply-chain signals available without running the package.
+    Unknown metadata (None) never produces a finding.
+    """
+    comparison = compare_graphs(baseline, current)
+    baseline_nodes = {node.id: node for node in baseline.nodes}
+    baseline_names = {node.name for node in baseline.nodes}
+    current_nodes = {node.id: node for node in current.nodes}
+    findings: list[Finding] = []
+
+    for change in comparison.version_changes:
+        previous = [baseline_nodes.get(f"{change.name}@{version}") for version in change.from_versions]
+        previous_scripts = [install_scripts(node) for node in previous if node is not None]
+        if not previous_scripts or any(scripts is None or scripts for scripts in previous_scripts):
+            continue
+        for version in change.to_versions:
+            node = current_nodes.get(f"{change.name}@{version}")
+            if node is None or not (scripts := install_scripts(node)):
+                continue
+            findings.append(
+                _install_script_finding(
+                    current,
+                    node,
+                    rule_id="install-script-added",
+                    severity="high",
+                    priority=85,
+                    title="Install script introduced in update",
+                    explanation=(
+                        f"{node.id} runs install lifecycle script(s) ({', '.join(scripts)}), while "
+                        f"{', '.join(f'{change.name}@{v}' for v in change.from_versions)} ran no install scripts. "
+                        "Install scripts execute code on every machine that installs the package; review the script "
+                        "source before merging."
+                    ),
+                    scripts=scripts,
+                    extra={"from_versions": list(change.from_versions)},
+                    observed_at=observed_at,
+                )
+            )
+
+    for node_id in comparison.added_packages:
+        node = current_nodes[node_id]
+        if node.name in baseline_names or not (scripts := install_scripts(node)):
+            continue
+        findings.append(
+            _install_script_finding(
+                current,
+                node,
+                rule_id="install-script-present",
+                severity="medium",
+                priority=65,
+                title="New dependency runs an install script",
+                explanation=(
+                    f"{node.id} is new to this lockfile and runs install lifecycle script(s) ({', '.join(scripts)}). "
+                    "Many legitimate packages do (e.g. native builds), but the script should be reviewed."
+                ),
+                scripts=scripts,
+                extra={},
+                observed_at=observed_at,
+            )
+        )
+    return findings
+
+
+LOCKFILE_INSTALL_SCRIPT = "declared in lockfile"
+
+
+def install_scripts(node: GraphNode) -> list[str] | None:
+    """Install lifecycle scripts a release runs: npm registry data when available, else the lockfile's
+    `hasInstallScript` flag (which names no script). None means unknown."""
+    if node.registry.install_scripts is not None:
+        return list(node.registry.install_scripts)
+    return [LOCKFILE_INSTALL_SCRIPT] if node.lockfile_install_script else None
+
+
+def _install_script_finding(
+    current: ScanGraph,
+    node: GraphNode,
+    *,
+    rule_id: str,
+    severity: str,
+    priority: int,
+    title: str,
+    explanation: str,
+    scripts: list[str],
+    extra: dict,
+    observed_at: datetime,
+) -> Finding:
+    return Finding(
+        id=_finding_id(current.scan_id, rule_id, node.id),
+        rule_id=rule_id,
+        package=node.name,
+        version=node.version,
+        severity=severity,
+        confidence="high",
+        priority_score=priority,
+        title=title,
+        explanation=explanation,
+        evidence=[
+            FindingEvidence(
+                source="npm-registry",
+                field="scripts",
+                value={"install_scripts": scripts, **extra},
+                observed_at=observed_at,
+            )
+        ],
+        paths=_dependency_paths(current, node.id),
+    )
+
+
+def detect_provenance_regressions(
+    baseline: ScanGraph,
+    current: ScanGraph,
+    *,
+    observed_at: datetime,
+) -> list[Finding]:
+    """Flag updates that drop npm build provenance their predecessor had.
+
+    A package that publishes from CI with provenance and then ships a release without it may have
+    been published from somewhere else, e.g. a stolen token on a laptop.
+    """
+    comparison = compare_graphs(baseline, current)
+    baseline_nodes = {node.id: node for node in baseline.nodes}
+    current_nodes = {node.id: node for node in current.nodes}
+    findings: list[Finding] = []
+    for change in comparison.version_changes:
+        attested = [
+            version
+            for version in change.from_versions
+            if (node := baseline_nodes.get(f"{change.name}@{version}")) is not None and node.registry.has_provenance
+        ]
+        if not attested:
+            continue
+        for version in change.to_versions:
+            node = current_nodes.get(f"{change.name}@{version}")
+            if node is None or node.registry.has_provenance is not False:
+                continue
+            findings.append(
+                Finding(
+                    id=_finding_id(current.scan_id, "provenance-removed", node.id),
+                    rule_id="provenance-removed",
+                    package=node.name,
+                    version=node.version,
+                    severity="medium",
+                    confidence="medium",
+                    priority_score=70,
+                    title="Release no longer has build provenance",
+                    explanation=(
+                        f"{', '.join(f'{change.name}@{v}' for v in attested)} was published with an npm provenance "
+                        f"attestation, but {node.id} was not. Confirm the release was published by the project's usual pipeline."
+                    ),
+                    evidence=[
+                        FindingEvidence(
+                            source="npm-registry",
+                            field="dist.attestations",
+                            value={"attested_versions": attested, "to_version": version, "has_provenance": False},
+                            observed_at=observed_at,
+                        )
+                    ],
+                    paths=_dependency_paths(current, node.id),
+                )
+            )
+    return findings
+
+
+def detect_deprecated_releases(
+    current: ScanGraph,
+    node_ids: set[str],
+    *,
+    observed_at: datetime,
+) -> list[Finding]:
+    """Flag the given releases that npm marks as deprecated (scoped by the caller, e.g. to a PR's changes)."""
+    findings: list[Finding] = []
+    for node in current.nodes:
+        if node.id not in node_ids or not node.registry.deprecated:
+            continue
+        findings.append(
+            Finding(
+                id=_finding_id(current.scan_id, "deprecated-package", node.id),
+                rule_id="deprecated-package",
+                package=node.name,
+                version=node.version,
+                severity="low",
+                confidence="high",
+                priority_score=40,
+                title="Release is deprecated",
+                explanation=f"npm marks {node.id} as deprecated: {node.registry.deprecated}",
+                evidence=[
+                    FindingEvidence(
+                        source="npm-registry",
+                        field="deprecated",
+                        value={"message": node.registry.deprecated},
+                        observed_at=observed_at,
+                    )
+                ],
+                paths=_dependency_paths(current, node.id),
+            )
+        )
     return findings
 
 

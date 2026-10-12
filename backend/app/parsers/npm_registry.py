@@ -19,7 +19,14 @@ class RegistryMetadata:
     deprecated: str | None = None
     published_at: str | None = None
     dist_integrity: str | None = None
+    # Lifecycle scripts npm runs on install; None when the metadata was unavailable.
+    install_scripts: tuple[str, ...] | None = None
+    # Whether npm holds a build provenance attestation for this release.
+    has_provenance: bool | None = None
     error: str | None = None
+
+
+INSTALL_LIFECYCLE_SCRIPTS = ("preinstall", "install", "postinstall")
 
 
 class NpmRegistryClient:
@@ -149,6 +156,9 @@ def _metadata_from_payload(package: str, version: str, payload: dict[str, Any]) 
     dist_data = dist if isinstance(dist, dict) else {}
     npm_user = payload.get("_npmUser")
     npm_user_data = npm_user if isinstance(npm_user, dict) else {}
+    scripts = payload.get("scripts")
+    scripts_data = scripts if isinstance(scripts, dict) else {}
+    attestations = dist_data.get("attestations")
     return RegistryMetadata(
         package=package,
         version=version,
@@ -159,6 +169,8 @@ def _metadata_from_payload(package: str, version: str, payload: dict[str, Any]) 
         deprecated=_optional_string(payload.get("deprecated")),
         published_at=None,
         dist_integrity=_optional_string(dist_data.get("integrity")),
+        install_scripts=tuple(name for name in INSTALL_LIFECYCLE_SCRIPTS if _optional_string(scripts_data.get(name))),
+        has_provenance=isinstance(attestations, dict) and isinstance(attestations.get("provenance"), dict),
     )
 
 

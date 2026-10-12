@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from app.detection.osv import OsvAdvisory
 from app.detection.rules import (
+    detect_deprecated_releases,
     detect_graph_changes,
     detect_known_vulnerabilities,
     detect_publisher_changes,
@@ -179,3 +180,37 @@ def test_release_timing_does_not_guess_when_history_is_missing_or_normal():
         },
         observed_at=OBSERVED_AT,
     ) == []
+
+def test_version_update_only_counts_genuinely_new_dependencies_as_expansion():
+    baseline = graph(
+        "baseline",
+        [node("express", "4.18.2", direct=True), node("body-parser", "1.0.0")],
+        [GraphEdge(source="express@4.18.2", target="body-parser@1.0.0", type="prod")],
+    )
+    current = graph(
+        "current",
+        [node("express", "4.18.3", direct=True), node("body-parser", "1.0.0"), node("helper", "1.0.0")],
+        [
+            GraphEdge(source="express@4.18.3", target="body-parser@1.0.0", type="prod"),
+            GraphEdge(source="express@4.18.3", target="helper@1.0.0", type="prod"),
+        ],
+    )
+
+    expansion = next(f for f in detect_graph_changes(baseline, current, observed_at=OBSERVED_AT) if f.rule_id == "dependency-expansion")
+
+    assert expansion.evidence[0].value["edges"] == [{"from": "express@4.18.3", "to": "helper@1.0.0", "type": "prod"}]
+
+
+def test_deprecated_rule_only_reports_the_requested_releases():
+    deprecated = RegistryMetadataResponse(status="available", deprecated="Use v2")
+    current = graph(
+        "current",
+        [
+            GraphNode(id="old@1.0.0", name="old", version="1.0.0", direct=True, lockfile_paths=[], registry=deprecated),
+            GraphNode(id="legacy@1.0.0", name="legacy", version="1.0.0", direct=True, lockfile_paths=[], registry=deprecated),
+        ],
+    )
+
+    findings = detect_deprecated_releases(current, {"old@1.0.0"}, observed_at=OBSERVED_AT)
+
+    assert [(f.package, f.rule_id, f.severity) for f in findings] == [("old", "deprecated-package", "low")]

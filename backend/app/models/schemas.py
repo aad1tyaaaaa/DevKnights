@@ -111,6 +111,8 @@ class RegistryMetadataResponse(BaseModel):
     deprecated: str | None = None
     published_at: str | None = None
     dist_integrity: str | None = None
+    install_scripts: list[str] | None = None
+    has_provenance: bool | None = None
     error: str | None = None
 
 
@@ -122,6 +124,7 @@ class GraphNode(BaseModel):
     lockfile_paths: list[str]
     resolved_urls: list[str] = Field(default_factory=list)
     lockfile_integrities: list[str] = Field(default_factory=list)
+    lockfile_install_script: bool = False
     registry: RegistryMetadataResponse
 
 
@@ -211,3 +214,57 @@ class VerificationResult(BaseModel):
     manifest: dict[str, Any] | None = None
     registry: RegistryLocation | None = None
     detail: str | None = None
+
+
+GateVerdict = Literal["pass", "warn", "fail"]
+GateCheckStatus = Literal["pass", "warn", "fail", "info"]
+GateThreshold = Literal["high", "medium", "low", "never"]
+
+
+class GateRequest(BaseModel):
+    """Compare a pull request's lockfile against its base. Package code is never downloaded or executed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    base_lockfile: Lockfile | None = Field(default=None, description="Omit when the PR adds the lockfile")
+    head_lockfile: Lockfile
+    fail_on: GateThreshold = "high"
+    label: str | None = Field(default=None, max_length=1024, description="e.g. the lockfile path, shown in the report")
+
+
+class GateCheck(BaseModel):
+    status: GateCheckStatus
+    label: str
+
+
+class GateRelease(BaseModel):
+    package: str
+    version: str
+    change: Literal["added", "updated"]
+    from_versions: list[str] = Field(default_factory=list)
+    direct: bool
+    verdict: GateVerdict
+    checks: list[GateCheck]
+    findings: list[Finding] = Field(default_factory=list)
+    anchor: VerificationResult | None = None
+    blast_radius: list[str] = Field(default_factory=list)
+
+
+class GateSummary(BaseModel):
+    added: int
+    updated: int
+    removed: int
+    failed: int
+    warned: int
+
+
+class GateReport(BaseModel):
+    verdict: GateVerdict
+    fail_on: GateThreshold
+    label: str | None = None
+    summary: GateSummary
+    releases: list[GateRelease]
+    removed_packages: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list, description="Lockfile resolution notes about changed releases")
+    markdown: str

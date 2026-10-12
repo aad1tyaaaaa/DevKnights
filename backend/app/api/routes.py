@@ -13,6 +13,7 @@ from app import __version__
 from app.detection.ai_ranker import GeminiFindingRanker
 from app.detection.osv import OsvClient
 from app.core.config import settings
+from app.gate import TrustGate
 from app.github import GitHubApiError, GitHubService
 from app.models.database import ScanRepository
 from app.blockchain.registry import ReleaseRegistryReader
@@ -20,6 +21,8 @@ from app.blockchain.verify import ReleaseVerifier
 from app.models.schemas import (
     ErrorResponse,
     Finding,
+    GateReport,
+    GateRequest,
     GitHubAuthStatus,
     GitHubRepository,
     GitHubScanRequest,
@@ -80,8 +83,15 @@ release_verifier = ReleaseVerifier(
 )
 
 
+trust_gate = TrustGate(scan_service.registry, osv=scan_service.osv, verifier=release_verifier)
+
+
 def get_scan_service() -> ScanService:
     return scan_service
+
+
+def get_trust_gate() -> TrustGate:
+    return trust_gate
 
 
 def get_release_verifier() -> ReleaseVerifier:
@@ -258,8 +268,40 @@ async def create_scan(
     if not request.headers.get("content-type", "").startswith("application/json"):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Content-Type must be application/json")
 
-    # Read the body ourselves so the size cap also holds for chunked uploads without Content-Length.
-    limit = settings.max_scan_bytes
+    scan_request = _validate(ScanRequest, await _read_capped_body(request, settings.max_scan_bytes))
+
+    scan_id = service.create_scan(scan_request.lockfile.model_dump(mode="json"), scan_request.project_name)
+    background_tasks.add_task(service.analyze_scan, scan_id)
+    return ScanAccepted(
+        scan_id=scan_id,
+        status="accepted",
+        message="Lockfile received. Dependency analysis has started.",
+    )
+
+
+@router.post(
+    "/api/gate",
+    response_model=GateReport,
+    responses={413: {"model": ErrorResponse}, 415: {"model": ErrorResponse}},
+)
+async def evaluate_trust_gate(
+    request: Request,
+    gate: Annotated[TrustGate, Depends(get_trust_gate)],
+) -> GateReport:
+    """Pull request trust gate: examines only releases the head lockfile adds or updates relative to the base."""
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Content-Type must be application/json")
+    gate_request = _validate(GateRequest, await _read_capped_body(request, 2 * settings.max_scan_bytes))
+    return await gate.evaluate(
+        gate_request.head_lockfile.model_dump(mode="json"),
+        gate_request.base_lockfile.model_dump(mode="json") if gate_request.base_lockfile else None,
+        fail_on=gate_request.fail_on,
+        label=gate_request.label,
+    )
+
+
+async def _read_capped_body(request: Request, limit: int) -> bytes:
+    """Read the body ourselves so the size cap also holds for chunked uploads without Content-Length."""
     too_large = HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, f"Request body exceeds {limit} bytes")
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > limit:
@@ -269,19 +311,14 @@ async def create_scan(
         body += chunk
         if len(body) > limit:
             raise too_large
+    return bytes(body)
 
+
+def _validate(model, body: bytes):
     try:
-        scan_request = ScanRequest.model_validate_json(bytes(body))
+        return model.model_validate_json(body)
     except ValidationError as exc:
         raise RequestValidationError(exc.errors(include_url=False, include_context=False, include_input=False))
-
-    scan_id = service.create_scan(scan_request.lockfile.model_dump(mode="json"), scan_request.project_name)
-    background_tasks.add_task(service.analyze_scan, scan_id)
-    return ScanAccepted(
-        scan_id=scan_id,
-        status="accepted",
-        message="Lockfile received. Dependency analysis has started.",
-    )
 
 
 @router.get("/api/scans/{scan_id}", response_model=ScanDetail)

@@ -10,7 +10,9 @@ from app.graph.builder import build_dependency_graph
 from app.graph.comparison import compare_graphs
 from app.detection.rules import (
     detect_graph_changes,
+    detect_install_script_changes,
     detect_known_vulnerabilities,
+    detect_provenance_regressions,
     detect_publisher_changes,
     detect_unusual_release_timing,
 )
@@ -24,8 +26,8 @@ from app.models.schemas import (
     ScanSummary,
     VersionChangeResponse,
 )
-from app.parsers.lockfile import ParsedPackage, parse_lockfile
-from app.parsers.npm_registry import NpmRegistryClient
+from app.parsers.lockfile import ParsedLockfile, ParsedPackage, parse_lockfile
+from app.parsers.npm_registry import NpmRegistryClient, RegistryMetadata
 
 
 class ScanService:
@@ -54,37 +56,10 @@ class ScanService:
         self.repository.set_analyzing(scan_id)
         try:
             parsed = parse_lockfile(row.lockfile)
-            graph = build_dependency_graph(parsed)
-            analysis_warnings = list(graph.warnings)
             metadata = await self.registry.fetch_many((package.name, package.version) for package in parsed.packages)
-            package_evidence = _package_evidence(parsed.packages)
-            nodes = []
-            for node in graph.nodes:
-                registry_metadata = metadata[(node.name, node.version)]
-                evidence = package_evidence[node.id]
-                nodes.append(
-                    GraphNode(
-                        id=node.id,
-                        name=node.name,
-                        version=node.version,
-                        direct=node.direct,
-                        lockfile_paths=list(node.lockfile_paths),
-                        resolved_urls=sorted(evidence["resolved_urls"]),
-                        lockfile_integrities=sorted(evidence["lockfile_integrities"]),
-                        registry=RegistryMetadataResponse.model_validate(asdict(registry_metadata)),
-                    )
-                )
-            edges = [
-                GraphEdge(source=edge.source, target=edge.target, type=edge.dependency_type)
-                for edge in graph.edges
-            ]
-            scan_graph = ScanGraph(
-                scan_id=scan_id,
-                status="complete",
-                nodes=nodes,
-                edges=edges,
-                warnings=list(graph.warnings),
-            )
+            scan_graph = build_scan_graph(scan_id, parsed, metadata)
+            analysis_warnings = list(scan_graph.warnings)
+            nodes = scan_graph.nodes
             project_name = row.project_name or parsed.name
             findings = []
             if self.osv is not None:
@@ -115,6 +90,8 @@ class ScanService:
                             observed_at=row.created_at,
                         )
                     )
+                    findings.extend(detect_install_script_changes(baseline_graph, scan_graph, observed_at=row.created_at))
+                    findings.extend(detect_provenance_regressions(baseline_graph, scan_graph, observed_at=row.created_at))
                     comparison = compare_graphs(baseline_graph, scan_graph)
                     release_times = await self.registry.fetch_release_times_many(
                         change.name for change in comparison.version_changes
@@ -180,6 +157,40 @@ class ScanService:
             ],
             added_edges=list(comparison.added_edges),
         )
+
+
+def build_scan_graph(
+    scan_id: str,
+    parsed: ParsedLockfile,
+    metadata: dict[tuple[str, str], RegistryMetadata],
+) -> ScanGraph:
+    """Turn a parsed lockfile into the API graph. Releases missing from `metadata` are marked unavailable."""
+    graph = build_dependency_graph(parsed)
+    package_evidence = _package_evidence(parsed.packages)
+    install_script_ids = {f"{package.name}@{package.version}" for package in parsed.packages if package.has_install_script}
+    nodes = []
+    for node in graph.nodes:
+        registry_metadata = metadata.get((node.name, node.version))
+        evidence = package_evidence[node.id]
+        nodes.append(
+            GraphNode(
+                id=node.id,
+                name=node.name,
+                version=node.version,
+                direct=node.direct,
+                lockfile_paths=list(node.lockfile_paths),
+                resolved_urls=sorted(evidence["resolved_urls"]),
+                lockfile_integrities=sorted(evidence["lockfile_integrities"]),
+                lockfile_install_script=node.id in install_script_ids,
+                registry=(
+                    RegistryMetadataResponse.model_validate(asdict(registry_metadata))
+                    if registry_metadata is not None
+                    else RegistryMetadataResponse(status="unavailable", error="Registry metadata was not fetched")
+                ),
+            )
+        )
+    edges = [GraphEdge(source=edge.source, target=edge.target, type=edge.dependency_type) for edge in graph.edges]
+    return ScanGraph(scan_id=scan_id, status="complete", nodes=nodes, edges=edges, warnings=list(graph.warnings))
 
 
 def _package_evidence(packages: tuple[ParsedPackage, ...]) -> dict[str, dict[str, set[str]]]:

@@ -195,6 +195,52 @@ Interpretation rules (UI and API must both follow):
 - `no_record` — evidence gap, **not** a risk signal. Must not be reported as a mismatch.
 - `unavailable` — chain or metadata unreachable; say so, don't guess.
 
+## Pull request trust gate — `POST /api/gate`
+
+Compares a pull request's lockfile with its base and examines only the releases the head adds or updates. Runs synchronously; the body cap is twice the scan cap. The same logic is available as a CLI (`python -m app.gate`, exit `1` on fail) and as the repository's GitHub Action (`action.yml`).
+
+```jsonc
+// request
+{
+  "base_lockfile": { "lockfileVersion": 3, "packages": { … } },   // optional: omit when the PR adds the lockfile
+  "head_lockfile": { "lockfileVersion": 3, "packages": { … } },
+  "fail_on": "high",               // high | medium | low | never — lowest finding severity that fails
+  "label": "frontend/package-lock.json"   // optional, shown in the report
+}
+
+// response
+{
+  "verdict": "fail",               // pass | warn | fail
+  "fail_on": "high",
+  "label": "frontend/package-lock.json",
+  "summary": { "added": 2, "updated": 1, "removed": 1, "failed": 1, "warned": 1 },
+  "releases": [
+    {
+      "package": "express",
+      "version": "4.18.3",
+      "change": "updated",          // added | updated
+      "from_versions": ["4.18.2"],
+      "direct": true,
+      "verdict": "fail",
+      "checks": [
+        { "status": "pass", "label": "No known vulnerabilities" },        // pass | warn | fail | info
+        { "status": "fail", "label": "New postinstall script introduced" }
+      ],
+      "findings": [ /* Finding objects, as in /findings */ ],
+      "anchor": null,               // VerificationResult when a release registry is reachable
+      "blast_radius": ["shop-app", "express"]
+    }
+  ],
+  "removed_packages": ["left-pad@1.3.0"],
+  "warnings": ["…"],               // report-level gaps, e.g. registry or OSV unavailable
+  "notes": ["…"],                  // lockfile resolution notes about changed releases
+  "markdown": "<!-- provenyx-trust-gate:frontend/package-lock.json -->
+## ❌ Dependency Trust Check: FAILED …"
+}
+```
+
+Verdict rules: a release fails when a finding's severity is at or above `fail_on`, or its anchor is a `mismatch`; any other `low`+ finding, or a release npm has no record of, warns. `info` findings and `no_record` anchors never warn. The overall verdict is the worst release verdict.
+
 ## Compatibility rules
 
 - Additive response fields are non-breaking; clients must ignore unknown fields.

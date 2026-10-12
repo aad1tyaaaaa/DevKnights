@@ -1,0 +1,28 @@
+name: Dependency Trust Gate
+
+on:
+  pull_request:
+    paths:
+      - '**/package-lock.json'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  trust-gate:
+    name: ${{ matrix.lockfile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile:
+          - frontend/package-lock.json
+          - extension/package-lock.json
+          - contracts/package-lock.json
+          - demo/sample-project/package-lock.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          lockfile: ${{ matrix.lockfile }}
