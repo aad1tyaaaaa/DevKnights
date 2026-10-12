@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { parse as parseYaml } from 'yaml';
 import type { Lockfile } from '../types';
 
 /** Same cap the backend enforces by default (PROVENYX_MAX_SCAN_BYTES). */
@@ -9,12 +10,13 @@ export function projectName(): string | undefined {
 }
 
 export function isProjectLockfile(uri: vscode.Uri): boolean {
-  return uri.path.endsWith('/package-lock.json') && !uri.path.includes('/node_modules/');
+  return /\/(?:package-lock\.json|pnpm-lock\.yaml)$/.test(uri.path) && !uri.path.includes('/node_modules/');
 }
 
-/** Finds package-lock.json files in the workspace or a specific folder, ignoring node_modules. */
+/** Finds supported dependency lockfiles in the workspace or a specific folder, ignoring node_modules. */
 export async function findLockfiles(folder?: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
-  const include = folder ? new vscode.RelativePattern(folder, '**/package-lock.json') : '**/package-lock.json';
+  const pattern = '**/{package-lock.json,pnpm-lock.yaml}';
+  const include = folder ? new vscode.RelativePattern(folder, pattern) : pattern;
   const found = await vscode.workspace.findFiles(include, '**/node_modules/**', 50);
   return found.sort((a, b) => a.path.length - b.path.length);
 }
@@ -23,9 +25,11 @@ export async function findLockfiles(folder?: vscode.WorkspaceFolder): Promise<vs
 export async function readLockfile(uri: vscode.Uri): Promise<Lockfile> {
   const { size } = await vscode.workspace.fs.stat(uri);
   if (size > MAX_LOCKFILE_BYTES) {
-    throw new Error(`package-lock.json is ${(size / 1048576).toFixed(1)} MB; the limit is 10 MB.`);
+    throw new Error(`${uri.path.split('/').pop()} is ${(size / 1048576).toFixed(1)} MB; the limit is 10 MB.`);
   }
   const text = new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(uri));
+  if (uri.path.endsWith('/pnpm-lock.yaml')) return parsePnpmLockfile(text);
+
   let data: unknown;
   try {
     data = JSON.parse(text);
@@ -33,6 +37,87 @@ export async function readLockfile(uri: vscode.Uri): Promise<Lockfile> {
     throw new Error('package-lock.json is not valid JSON.');
   }
   return validateLockfile(data);
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+export function parsePnpmLockfile(text: string): Lockfile {
+  let data: unknown;
+  try {
+    data = parseYaml(text);
+  } catch {
+    throw new Error('pnpm-lock.yaml is not valid YAML.');
+  }
+  if (!isRecord(data) || !isRecord(data.importers) || !isRecord(data.packages) || !isRecord(data.snapshots)) {
+    throw new Error('pnpm-lock.yaml must contain importers, packages, and snapshots objects.');
+  }
+
+  const importer = isRecord(data.importers['.']) ? data.importers['.'] : Object.values(data.importers).find(isRecord);
+  const root = isRecord(importer) ? importer : {};
+  const packageMetadata = data.packages;
+  const packages: Record<string, unknown> = {
+    '': {
+      dependencies: normalizeDependencyMap(root.dependencies),
+      devDependencies: normalizeDependencyMap(root.devDependencies),
+      optionalDependencies: normalizeDependencyMap(root.optionalDependencies),
+    },
+  };
+
+  for (const [snapshotKey, rawSnapshot] of Object.entries(data.snapshots)) {
+    const identity = parsePnpmPackageKey(snapshotKey);
+    if (!identity || !isRecord(rawSnapshot)) continue;
+    const metadataKey = `${identity.name}@${identity.version}`;
+    const metadata = isRecord(packageMetadata[snapshotKey])
+      ? packageMetadata[snapshotKey]
+      : isRecord(packageMetadata[metadataKey]) ? packageMetadata[metadataKey] : {};
+    const resolution = isRecord(metadata.resolution) ? metadata.resolution : {};
+    const virtualPath = `node_modules/.pnpm/${encodeURIComponent(snapshotKey)}/node_modules/${identity.name}`;
+    packages[virtualPath] = {
+      name: identity.name,
+      version: identity.version,
+      integrity: typeof resolution.integrity === 'string' ? resolution.integrity : undefined,
+      dependencies: normalizeDependencyMap(rawSnapshot.dependencies),
+      optionalDependencies: normalizeDependencyMap(rawSnapshot.optionalDependencies),
+      peerDependencies: normalizeDependencyMap(rawSnapshot.peerDependencies),
+    };
+  }
+
+  return validateLockfile({ lockfileVersion: 3, packages, provenyxSource: 'pnpm-lock.yaml' });
+}
+
+function normalizeDependencyMap(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([name, rawValue]) => {
+      const value = typeof rawValue === 'string'
+        ? rawValue
+        : isRecord(rawValue) && typeof rawValue.version === 'string' ? rawValue.version : undefined;
+      const version = value && exactPnpmVersion(value);
+      return version ? [[name, version]] : [];
+    }),
+  );
+}
+
+function parsePnpmPackageKey(key: string): { name: string; version: string } | undefined {
+  const peerIndex = key.indexOf('(');
+  const base = peerIndex >= 0 ? key.slice(0, peerIndex) : key;
+  const separator = base.startsWith('@') ? base.indexOf('@', base.indexOf('/') + 1) : base.lastIndexOf('@');
+  if (separator <= 0) return undefined;
+  const name = base.slice(0, separator);
+  const version = exactPnpmVersion(base.slice(separator + 1));
+  return version ? { name, version } : undefined;
+}
+
+function exactPnpmVersion(value: string): string | undefined {
+  if (/^(?:link|workspace|file):/.test(value)) return undefined;
+  const peerIndex = value.indexOf('(');
+  const withoutPeers = peerIndex >= 0 ? value.slice(0, peerIndex) : value;
+  const aliasSeparator = withoutPeers.lastIndexOf('@');
+  return aliasSeparator > 0 ? withoutPeers.slice(aliasSeparator + 1) : withoutPeers || undefined;
+}
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function validateLockfile(data: unknown): Lockfile {

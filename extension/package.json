@@ -2,7 +2,7 @@
   "name": "provenyx-security",
   "displayName": "Provenyx Security",
   "description": "Software dependency trust and supply-chain security analysis",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "OmkarPramodBandikatte",
   "license": "MIT",
   "private": true,
@@ -18,13 +18,15 @@
     "security",
     "supply chain",
     "npm",
+    "pnpm",
     "dependencies",
     "package-lock"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "workspaceContains:package-lock.json"
+    "workspaceContains:package-lock.json",
+    "workspaceContains:pnpm-lock.yaml"
   ],
   "contributes": {
     "commands": [
@@ -112,7 +114,7 @@
         "provenyx.autoScanEnabled": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "When a `package-lock.json` is created or changes, start the scan flow automatically. You are still asked to confirm before anything is sent to the API."
+          "markdownDescription": "When a supported dependency lockfile is found, created, or changed, start the scan flow automatically. You are still asked to confirm before anything is sent to the API."
         }
       }
     }
@@ -147,5 +149,8 @@
   "galleryBanner": {
     "color": "#173d30",
     "theme": "dark"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
   }
 }

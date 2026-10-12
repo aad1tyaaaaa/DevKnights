@@ -3,9 +3,9 @@ import { isProjectLockfile } from '../utils/workspace';
 
 const DEBOUNCE_MS = 1500;
 
-/** Starts the consent-gated scan flow after package-lock.json changes. */
+/** Starts the consent-gated scan flow after a supported dependency lockfile changes. */
 export function createLockfileWatcher(onChange: (uri: vscode.Uri) => void): vscode.Disposable {
-  const watcher = vscode.workspace.createFileSystemWatcher('**/package-lock.json');
+  const watcher = vscode.workspace.createFileSystemWatcher('**/{package-lock.json,pnpm-lock.yaml}');
   const pending = new Map<string, NodeJS.Timeout>();
 
   const scan = (uri: vscode.Uri) => {

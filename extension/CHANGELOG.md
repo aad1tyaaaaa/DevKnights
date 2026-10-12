@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- Discover and scan every supported dependency lockfile across local workspace folders.
+- Add local parsing and automatic change detection for pnpm v9 `pnpm-lock.yaml` files.
+- Preserve pnpm direct and transitive dependency edges without uploading source files.
+
 ## 0.1.2
 
 - Start the consent-gated scan flow when opening a project that already contains `package-lock.json`.

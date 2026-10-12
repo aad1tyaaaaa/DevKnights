@@ -10,10 +10,9 @@ import { findLockfiles } from './utils/workspace';
 export function activate(context: vscode.ExtensionContext) {
   const tree = new FindingsTreeProvider();
 
-  const scanExistingLockfile = async (folder?: vscode.WorkspaceFolder) => {
+  const scanExistingLockfiles = async (folder?: vscode.WorkspaceFolder) => {
     if (!vscode.workspace.getConfiguration('provenyx').get<boolean>('autoScanEnabled', true)) return;
-    const [lockfile] = await findLockfiles(folder);
-    if (lockfile) await scanDependencies(tree, lockfile);
+    for (const lockfile of await findLockfiles(folder)) await scanDependencies(tree, lockfile);
   };
 
   const checkBackend = async (notify: boolean) => {
@@ -43,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     createLockfileWatcher((uri) => void scanDependencies(tree, uri)),
     vscode.workspace.onDidChangeWorkspaceFolders((event) => {
       tree.refresh();
-      for (const folder of event.added) void scanExistingLockfile(folder);
+      for (const folder of event.added) void scanExistingLockfiles(folder);
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('provenyx.apiBaseUrl')) void checkBackend(false);
@@ -54,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
   void checkBackend(false);
 
   // File watchers only observe future writes, so scan the lockfile already present when a project opens.
-  void scanExistingLockfile();
+  void scanExistingLockfiles();
 
   // Exposed for the extension's own smoke tests; not a public API.
   return { tree };

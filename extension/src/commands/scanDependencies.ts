@@ -6,12 +6,12 @@ import { openDashboard, scanPath } from '../utils/dashboard';
 import { showApiError } from '../utils/errors';
 import { findLockfiles, projectName, readLockfile } from '../utils/workspace';
 
-const CLIENT = 'vscode-extension/0.1.0';
+const CLIENT = 'vscode-extension/0.1.3';
 const POLL_INTERVAL_MS = 2_000;
 const POLL_LIMIT_MS = 120_000;
 
 /**
- * Reads a package-lock.json and, after explicit confirmation, sends it to the Provenyx API.
+ * Reads a supported dependency lockfile and, after explicit confirmation, sends it to the Provenyx API.
  * Never installs or executes anything from the scanned project.
  */
 export async function scanDependencies(tree: FindingsTreeProvider, target?: vscode.Uri): Promise<void> {
@@ -35,12 +35,12 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
   const base = apiBaseUrl();
   const send = 'Send to Provenyx API';
   const choice = await vscode.window.showInformationMessage(
-    `Provenyx found ${relPath} (lockfileVersion ${lockfile.lockfileVersion}).`,
+    `Provenyx found ${relPath}.`,
     {
       modal: true,
       detail:
-        `Send the contents of this lockfile to ${base}?\n\n` +
-        'Only package-lock.json is sent. No other project files are uploaded and no packages are installed or executed.',
+        `Send dependency data from ${relPath} to ${base}?\n\n` +
+        'No source files are uploaded and no packages are installed or executed.',
     },
     send,
   );
@@ -122,7 +122,7 @@ async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<v
 async function pickLockfile(): Promise<vscode.Uri | undefined> {
   const found = await findLockfiles();
   if (found.length === 0) {
-    void vscode.window.showWarningMessage('Provenyx: No package-lock.json found in this workspace. Run `npm install` in your own project to create one.');
+    void vscode.window.showWarningMessage('Provenyx: No supported dependency lockfile found. Supported files: package-lock.json and pnpm-lock.yaml.');
     return undefined;
   }
   if (found.length === 1) return found[0];
