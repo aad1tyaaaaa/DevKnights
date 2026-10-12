@@ -45,6 +45,34 @@ def test_graph_resolves_nearest_nested_version_and_preserves_both_versions():
     assert [(edge.source, edge.target) for edge in graph.edges] == [("a@1.0.0", "shared@1.0.0")]
 
 
+def test_graph_resolves_exact_versions_from_pnpm_virtual_paths():
+    parsed = parse_lockfile(
+        {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"dependencies": {"parent": "1.0.0"}},
+                "node_modules/.pnpm/parent@1.0.0/node_modules/parent": {
+                    "name": "parent",
+                    "version": "1.0.0",
+                    "dependencies": {"child": "2.0.0"},
+                },
+                "node_modules/.pnpm/child@2.0.0/node_modules/child": {
+                    "name": "child",
+                    "version": "2.0.0",
+                },
+            },
+        }
+    )
+
+    graph = build_dependency_graph(parsed)
+
+    assert [(node.id, node.direct) for node in graph.nodes] == [
+        ("child@2.0.0", False),
+        ("parent@1.0.0", True),
+    ]
+    assert [(edge.source, edge.target) for edge in graph.edges] == [("parent@1.0.0", "child@2.0.0")]
+
+
 def test_graph_combines_paths_for_identical_package_releases():
     parsed = parse_lockfile(
         {

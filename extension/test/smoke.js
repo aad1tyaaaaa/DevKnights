@@ -36,6 +36,7 @@ function startFakeApi(mode) {
         const parsed = JSON.parse(body);
         assert.strictEqual(parsed.lockfile.lockfileVersion, 3, 'extension must send the parsed lockfile');
         server.lastProjectName = parsed.project_name;
+        server.lastLockfile = parsed.lockfile;
         server.posts = (server.posts ?? 0) + 1;
         return send(202, { scan_id: SCAN_ID, status: 'accepted', message: 'Lockfile received.' });
       }
@@ -90,7 +91,7 @@ async function runChecks() {
     const opts = rest[0];
     if (opts && typeof opts === 'object' && opts.modal) {
       consentShown++;
-      assert.match(opts.detail, /Only package-lock\.json is sent/);
+      assert.match(opts.detail, /No source files are uploaded/);
       return Promise.resolve(consentChoice);
     }
     return Promise.resolve(undefined);
@@ -130,7 +131,41 @@ async function runChecks() {
     assert.deepStrictEqual(finding.command.arguments, [`/scans/${SCAN_ID}?finding=f-1`]);
     api.close();
 
-    // 3. Backend offline: no crash, clear state.
+    // 4. pnpm v9: parse YAML locally and preserve exact root/transitive dependency versions.
+    api = await startFakeApi('full');
+    await useApi(`http://127.0.0.1:${api.address().port}`);
+    const pnpmPath = vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'pnpm-lock.yaml');
+    await vscode.workspace.fs.writeFile(pnpmPath, Buffer.from(`lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      parent:
+        specifier: ^1.0.0
+        version: 1.0.0
+packages:
+  parent@1.0.0:
+    resolution: {integrity: sha512-parent}
+  child@2.0.0:
+    resolution: {integrity: sha512-child}
+snapshots:
+  parent@1.0.0:
+    dependencies:
+      child: 2.0.0
+  child@2.0.0: {}
+`));
+    try {
+      await vscode.commands.executeCommand('provenyx.scanDependencies', pnpmPath);
+    } finally {
+      await vscode.workspace.fs.delete(pnpmPath);
+    }
+    assert.strictEqual(api.lastLockfile.provenyxSource, 'pnpm-lock.yaml');
+    assert.strictEqual(api.lastLockfile.packages[''].dependencies.parent, '1.0.0');
+    const normalized = Object.values(api.lastLockfile.packages);
+    assert.ok(normalized.some((entry) => entry.name === 'parent' && entry.version === '1.0.0' && entry.dependencies.child === '2.0.0'));
+    assert.ok(normalized.some((entry) => entry.name === 'child' && entry.version === '2.0.0'));
+    api.close();
+
+    // 5. Backend offline: no crash, clear state.
     await useApi('http://127.0.0.1:9');
     const errors = [];
     const originalError = vscode.window.showErrorMessage;
@@ -147,7 +182,7 @@ async function runChecks() {
     assert.strictEqual(tree.lastScan.kind, 'failed');
     assert.match(tree.lastScan.message, /Cannot reach the Provenyx API/);
 
-    // 4. Lockfile watcher: a burst of writes starts ONE consent-gated scan, and declining sends nothing.
+    // 6. Lockfile watcher: a burst of writes starts ONE consent-gated scan, and declining sends nothing.
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
     consentChoice = undefined;
@@ -169,7 +204,7 @@ async function runChecks() {
     await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', undefined, vscode.ConfigurationTarget.Global);
     api.close();
 
-    // 5. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).
+    // 7. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).
     const real = process.env.PROVENYX_SMOKE_REAL_API;
     if (real) {
       await useApi(real);

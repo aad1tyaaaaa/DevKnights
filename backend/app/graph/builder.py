@@ -36,13 +36,14 @@ EDGE_TYPE_ORDER = ["prod", "dev", "optional", "peer"]
 def build_dependency_graph(parsed: ParsedLockfile) -> DependencyGraph:
     """Build a directed graph using npm's nearest-ancestor package resolution."""
     packages_by_path = {package.lockfile_path: package for package in parsed.packages}
+    packages_by_identity = {(package.name, package.version): package for package in parsed.packages}
     # Resolve each root declaration the way npm does, so aliases ("foo": "npm:bar@1") and unusual
     # layouts mark the package that is actually installed, not whatever happens to share the name.
     direct_ids = {
         _node_id(target)
         for dependencies in parsed.root_dependency_groups.values()
-        for name in dependencies
-        if (target := _resolve_dependency("", name, packages_by_path)) is not None
+        for name, specifier in dependencies.items()
+        if (target := _resolve_dependency("", name, specifier, packages_by_path, packages_by_identity)) is not None
     }
     graph = nx.DiGraph()
 
@@ -61,8 +62,14 @@ def build_dependency_graph(parsed: ParsedLockfile) -> DependencyGraph:
     for package in parsed.packages:
         source_id = _node_id(package)
         for dependency_type, dependencies in package.dependency_groups.items():
-            for dependency_name in dependencies:
-                target = _resolve_dependency(package.lockfile_path, dependency_name, packages_by_path)
+            for dependency_name, specifier in dependencies.items():
+                target = _resolve_dependency(
+                    package.lockfile_path,
+                    dependency_name,
+                    specifier,
+                    packages_by_path,
+                    packages_by_identity,
+                )
                 if target is None:
                     warnings.append(
                         f"Could not resolve {dependency_name!r} declared by {package.name}@{package.version}"
@@ -97,7 +104,9 @@ def build_dependency_graph(parsed: ParsedLockfile) -> DependencyGraph:
 def _resolve_dependency(
     parent_path: str,
     dependency_name: str,
+    dependency_specifier: str,
     packages_by_path: dict[str, ParsedPackage],
+    packages_by_identity: dict[tuple[str, str], ParsedPackage],
 ) -> ParsedPackage | None:
     current_path = parent_path
     while True:
@@ -108,7 +117,7 @@ def _resolve_dependency(
         ancestor_marker = current_path.rfind("/node_modules/")
         if ancestor_marker < 0:
             if not current_path:
-                return None
+                return packages_by_identity.get((dependency_name, dependency_specifier))
             current_path = ""
         else:
             current_path = current_path[:ancestor_marker]
