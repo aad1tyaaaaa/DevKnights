@@ -18,13 +18,13 @@
 | Phase | Focus | Budget | Owner | Support | Status | Deliverable |
 |---|---|---:|---|---|---|---|
 | 1 | Foundation | 2 h | Aaditya + Omkar | — | ✅ Done | Running project scaffolds and API contract |
-| 2 | VS Code extension | 3 h | **Aaditya** | Omkar (API) | 🟡 Mostly done | Scan command, sidebar, API connection |
+| 2 | VS Code extension | 3 h | **Aaditya** | Omkar (API) | ✅ Done | Scan command, sidebar, API connection |
 | 3 | Real npm scanner | 4 h | **Omkar** | — | ⬜ Not started | Lockfile parser, registry lookup, graph |
 | 4 | Risk engine | 4 h | **Omkar** | Aaditya (fixtures review) | ⬜ Not started | Explainable findings and blast radius |
-| 5 | Web dashboard | 3 h | **Aaditya** | — | 🟡 Scaffolded | Investigation UI with real data |
-| 6 | Blockchain verification | 3 h | **Omkar** (manifest + backend) | **Aaditya** (contract + UI) | 🟡 Contract scaffolded | Anchored manifest verification |
+| 5 | Web dashboard | 3 h | **Aaditya** | — | ✅ Done (UI) — real data arrives with Phases 3–4 | Investigation UI with real data |
+| 6 | Blockchain verification | 3 h | **Omkar** (manifest + backend) | **Aaditya** (contract + UI) | 🟡 Aaditya's part ✅ · Omkar's part ⬜ | Anchored manifest verification |
 | 7 | Integration and testing | 3 h | Aaditya + Omkar | — | ⬜ Not started | Reliable end-to-end workflow |
-| 8 | Marketplace and demo | 2 h | **Aaditya** | Omkar (backend demo setup) | 🟡 VSIX packages | Tested VSIX and publication submission |
+| 8 | Marketplace and demo | 2 h | **Aaditya** | Omkar (backend demo setup) | 🟡 Ready — blocked on publisher ID + license | Tested VSIX and publication submission |
 
 These are effort budgets. Run independent tasks in parallel. Publication processing is not included.
 
@@ -100,16 +100,16 @@ provenyx/
 
 ## Phase 2 — VS Code extension (3 hours)
 
-**Owner:** Aaditya · **Support:** Omkar (API) · **Status:** 🟡 Mostly done — all features below were built during Phase 1.
+**Owner:** Aaditya · **Support:** Omkar (API) · **Status:** ✅ Done (2026-10-12) — verified by the automated VS Code smoke test.
 
 ### Objective
 Let developers scan dependencies without leaving VS Code.
 
 ### Remaining work (Aaditya)
-- [ ] Manual F5 test: click **Send to Provenyx API** in the consent dialog and confirm *Last scan: Accepted* in the sidebar.
-- [ ] Manual test with the backend stopped: sidebar shows *Unreachable*, no crash.
-- [ ] Once Omkar's Phase 4 findings endpoint exists, list real findings in the sidebar.
-- [ ] Open the dashboard on the matching scan (`/scans/{id}`) after a scan.
+- [x] Consent → submit → *Last scan: Accepted*, tested automatically against the real backend.
+- [x] Backend stopped: sidebar shows *Unreachable*, scan fails cleanly, no crash.
+- [x] Sidebar lists findings from `GET /api/scans/{id}/findings` (tested against the contract; real data once Phase 4 merges).
+- [x] **Open in Dashboard** opens `/scans/{id}`, and clicking a finding opens `/scans/{id}?finding={fid}`.
 
 ### Features
 - Provenyx Activity Bar icon and TreeView sidebar.
@@ -125,9 +125,9 @@ Let developers scan dependencies without leaving VS Code.
 ### Done when
 - [x] F5 starts extension and commands appear.
 - [x] Scan reads a real npm project lockfile.
-- [ ] Backend receives request and returns scan ID — verified via `curl`; in-editor click still to test manually.
-- [ ] Sidebar shows scan result or meaningful error — implemented; still to test manually.
-- [ ] Offline backend does not crash extension — implemented; still to test manually.
+- [x] Backend receives request and returns scan ID.
+- [x] Sidebar shows scan result or meaningful error.
+- [x] Offline backend does not crash extension.
 
 ---
 
@@ -194,7 +194,7 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 
 ## Phase 5 — Premium web dashboard (3 hours)
 
-**Owner:** Aaditya · **Status:** 🟡 Scaffolded — `/`, `/dashboard`, `/scans`, `/settings`, sidebar, backend status card and empty states exist with the target design · **Where:** `frontend/`
+**Owner:** Aaditya · **Status:** ✅ Done (UI) — `/dashboard`, `/scan/new`, `/scans`, `/scans/[id]` (findings, Cytoscape graph, drawer, verification), `/settings`. `/reports` skipped (optional) · **Where:** `frontend/`
 
 Start against the draft schemas in `docs/api-contract.md` while Omkar builds Phases 3–4. Use real responses only, never mock data shown as real.
 
@@ -215,11 +215,11 @@ White/off-white cards, deep forest-green sidebar, mint accents, subtle borders, 
 `AppSidebar`, `AppHeader`, `ScanDropzone`, `ScanProgress`, `MetricCard`, `FindingsTable`, `DependencyGraph` (Cytoscape.js), `PackageDetailDrawer`, `VerificationStatus`, `EmptyState`, `ErrorState`.
 
 ### Done when
-- [ ] Dashboard consumes real backend results.
-- [ ] Graph supports zoom, pan, node selection, and highlighted paths.
-- [ ] VS Code opens the correct scan.
-- [ ] Loading/error/empty states are clear.
-- [ ] No fabricated production metrics.
+- [ ] Dashboard consumes real backend results — consumes the agreed contract (verified against a contract-shaped mock); real data lands with Omkar's Phases 3–4. Check in Phase 7.
+- [x] Graph supports zoom, pan, node selection, and highlighted paths.
+- [x] VS Code opens the correct scan.
+- [x] Loading/error/empty states are clear.
+- [x] No fabricated production metrics.
 
 ---
 
@@ -228,24 +228,24 @@ White/off-white cards, deep forest-green sidebar, mint accents, subtle borders, 
 ### Objective
 Verify that current release evidence matches a previously approved anchored manifest.
 
-**Owners:** Omkar (manifest + backend) · Aaditya (contract + UI) · **Status:** 🟡 Contract scaffolded · **Where:** `contracts/`, `backend/app/blockchain/`, `frontend/`
+**Owners:** Omkar (manifest + backend) · Aaditya (contract + UI) · **Status:** 🟡 Aaditya's tasks ✅ · Omkar's tasks ⬜ · **Where:** `contracts/`, `backend/app/blockchain/`, `frontend/`
 
 ### Tasks
 | # | Task | Owner | Status |
 |---|---|---|---|
 | 1 | Define canonical manifest fields: package, version, selected trusted metadata, schema version. | Omkar | ⬜ |
 | 2 | Serialize deterministically and hash; test cross-language consistency. | Omkar | ⬜ |
-| 3 | Create `ReleaseRegistry.sol` with authorized anchoring and public lookup. | Aaditya | ✅ Scaffolded (`anchor`, `matches`, write-once, owner-only; 3 tests) |
-| 4 | Deploy to local Hardhat chain only; share address + ABI with Omkar. | Aaditya | 🟡 `scripts/deploy.ts` works |
+| 3 | Create `ReleaseRegistry.sol` with authorized anchoring and public lookup. | Aaditya | ✅ `anchor`, `recordOf` (hash + `anchoredAt`), `matches`; write-once, owner-only; 5 tests |
+| 4 | Deploy to local Hardhat chain only; share address + ABI with Omkar. | Aaditya | ✅ `deploy:local` writes `deployments/localhost.json`; `anchor:local` anchors from `anchors.json` |
 | 5 | Implement backend verification and return `match`, `mismatch`, `no_record`, or `unavailable`. | Omkar | ⬜ |
-| 6 | Show the source of the anchor, manifest details, and local-demo-chain labeling. | Aaditya | ⬜ |
+| 6 | Show the source of the anchor, manifest details, and local-demo-chain labeling. | Aaditya | ✅ `VerificationStatus` in the package drawer |
 
 ### Done when
 - [ ] Approved manifest matches.
 - [ ] Altered manifest mismatches.
 - [ ] Unknown manifest returns no record.
 - [ ] Offline chain returns unavailable.
-- [ ] UI does not claim hash match proves safety.
+- [x] UI does not claim hash match proves safety.
 
 ---
 
@@ -275,7 +275,7 @@ Passing tests, fixed blockers, tagged commit, tested VSIX, backup demo recording
 
 ## Phase 8 — Marketplace publishing and demo (2 hours of team effort)
 
-**Owner:** Aaditya · **Support:** Omkar (backend + local chain running for the demo) · **Status:** 🟡 VSIX packages (`npm run package:extension`); see `docs/marketplace-checklist.md` for open listing items.
+**Owner:** Aaditya · **Support:** Omkar (backend + local chain running for the demo) · **Status:** 🟡 Ready to publish once the publisher ID and license are set — see `docs/marketplace-checklist.md`; demo script in `docs/demo-script.md`.
 
 ### Publisher account
 1. Visit [Marketplace publisher management](https://marketplace.visualstudio.com/manage/publishers/).
@@ -285,11 +285,11 @@ Passing tests, fixed blockers, tagged commit, tested VSIX, backup demo recording
 
 ### Listing readiness
 - [ ] Exact publisher ID in extension `package.json`.
-- [ ] Display name, description, version, VS Code engine compatibility.
-- [ ] Genuine icon (128×128 PNG), screenshots, README.
-- [ ] Repository, license, support details, privacy disclosure.
-- [ ] Backend availability documented: Marketplace does **not** host FastAPI.
-- [ ] `.vscodeignore` excludes secrets, large dev files, and fixtures not required at runtime.
+- [x] Display name, description, version, VS Code engine compatibility.
+- [ ] Genuine icon (128×128 PNG), screenshots, README — icon and README done; screenshots wait for real results.
+- [ ] Repository, license, support details, privacy disclosure — all done except the license choice.
+- [x] Backend availability documented: Marketplace does **not** host FastAPI.
+- [x] `.vscodeignore` excludes secrets, large dev files, and fixtures not required at runtime.
 
 ### Package and publish
 ```bash
@@ -319,9 +319,9 @@ You can also upload a packaged VSIX through the publisher portal. Never commit c
 | 7. Show Marketplace listing if live; otherwise show the working VSIX and accurate submission status. | Aaditya |
 
 ### Done when
-- [ ] VSIX works independently of Marketplace approval.
-- [ ] Marketplace submission succeeds or blocker is documented.
-- [ ] Demo works with a backup plan.
+- [x] VSIX works independently of Marketplace approval (installs in a clean profile; shipped bundle passes the smoke test).
+- [x] Marketplace submission succeeds or blocker is documented (blocked on publisher ID + license).
+- [ ] Demo works with a backup plan — script and fallbacks in `docs/demo-script.md`; rehearse after Phase 7.
 
 ---
 

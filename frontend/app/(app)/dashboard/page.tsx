@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowRight, Code2, FileSearch } from 'lucide-react'
+import { ArrowRight, Code2, Plus } from 'lucide-react'
 import { BackendStatus } from '@/components/backend-status'
-import { EmptyState, PageHeader } from '@/components/page-header'
+import { DashboardOverview } from '@/components/dashboard-overview'
+import { PageHeader, primaryButton, secondaryButton } from '@/components/page-header'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -19,7 +20,8 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow="Development workspace"
         title="Dashboard"
-        description="Investigate dependency trust for your npm projects. Scans are started from VS Code."
+        description="Investigate dependency trust for your npm projects."
+        action={<Link href="/scan/new" className={primaryButton}><Plus className="size-4" aria-hidden /> New scan</Link>}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -41,10 +43,7 @@ export default function DashboardPage() {
               </li>
             ))}
           </ol>
-          <Link
-            href="/settings#extension"
-            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-forest px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#225b3c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf"
-          >
+          <Link href="/settings#extension" className={`${secondaryButton} mt-6`}>
             Extension setup instructions <ArrowRight className="size-4" aria-hidden />
           </Link>
         </section>
@@ -52,10 +51,7 @@ export default function DashboardPage() {
         <BackendStatus />
       </div>
 
-      <EmptyState icon={<FileSearch className="size-5" aria-hidden />} title="No scans to show yet">
-        Dependency analysis arrives in a later release. Lockfiles submitted today are validated and acknowledged, but no findings are
-        produced or stored.
-      </EmptyState>
+      <DashboardOverview />
     </div>
   )
 }

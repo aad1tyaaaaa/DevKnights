@@ -12,6 +12,9 @@ contracts/artifacts/
 contracts/cache/
 contracts/types/
 contracts/coverage/
+contracts/deployments/
+contracts/anchors.json
+contracts/ignition/deployments/
 
 # Python
 __pycache__/

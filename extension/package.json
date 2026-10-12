@@ -116,7 +116,7 @@
     "compile": "npm run check-types && node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "npm run check-types && node esbuild.js --production",
-    "vsix": "vsce package --no-dependencies --allow-missing-repository",
+    "vsix": "vsce package --no-dependencies",
     "test:smoke": "npm run compile && node test/runSmoke.js"
   },
   "devDependencies": {
@@ -126,5 +126,19 @@
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "typescript": "~5.9.3"
+  },
+  "preview": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aad1tyaaaaa/DevKnights.git",
+    "directory": "extension"
+  },
+  "bugs": {
+    "url": "https://github.com/aad1tyaaaaa/DevKnights/issues"
+  },
+  "homepage": "https://github.com/aad1tyaaaaa/DevKnights/tree/main/extension#readme",
+  "galleryBanner": {
+    "color": "#173d30",
+    "theme": "dark"
   }
 }

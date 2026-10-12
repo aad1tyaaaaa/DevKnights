@@ -63,38 +63,103 @@ No other top-level fields are accepted.
 
 Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`), methods `GET`/`POST`, header `Content-Type`. The extension runs in Node and is not subject to CORS.
 
-## Planned endpoints (not implemented — draft shapes for Phase 2+)
+## Planned endpoints (owner: Omkar) — agreed shapes
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/scans/{scan_id}` | Status and summary |
-| `GET /api/scans/{scan_id}/findings` | Evidence-backed findings |
-| `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges |
-| `POST /api/releases/verify` | Compare release metadata with the on-chain manifest hash |
+Not implemented yet. The extension (Phase 2) and dashboard (Phase 5) already call these and handle `404`/`405`/`501` as "not available from this API yet", so the backend can ship them one at a time. All are `GET` except verify.
 
-Draft schemas (subject to change until implemented):
+| Endpoint | Purpose | Phase |
+| --- | --- | --- |
+| `GET /api/scans` | Recent scans, newest first (max 50) | 3 |
+| `GET /api/scans/{scan_id}` | Status and summary | 3 |
+| `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges | 3 |
+| `GET /api/scans/{scan_id}/findings` | Evidence-backed findings | 4 |
+| `POST /api/releases/verify` | Compare release metadata with the on-chain manifest hash | 6 |
+
+Unknown `scan_id` → `404 { "detail": "Scan not found" }`.
+
+### Scan — `GET /api/scans/{scan_id}`; `GET /api/scans` returns `{ "scans": [Scan, ...] }`
 
 ```jsonc
-// Scan
-{ "scan_id": "uuid", "status": "accepted | analyzing | complete | failed",
-  "created_at": "ISO-8601", "project_name": "string|null",
-  "summary": { "packages": 0, "direct": 0, "transitive": 0, "findings": 0 } }
-
-// Finding — every finding must carry evidence; no evidence, no finding
-{ "id": "uuid", "rule_id": "string", "package": "name", "version": "x.y.z",
-  "severity": "info | low | medium | high",
-  "title": "string", "explanation": "string",
-  "evidence": [ { "source": "npm-registry | lockfile | registry-contract", "field": "string", "value": "any", "observed_at": "ISO-8601" } ],
-  "paths": [ ["root", "dep-a", "package"] ] }
-
-// Graph — node id is "name@version" so multiple installed versions stay distinct
-{ "nodes": [ { "id": "name@version", "name": "string", "version": "string", "direct": true, "lockfile_paths": ["node_modules/..."] } ],
-  "edges": [ { "from": "name@version", "to": "name@version", "type": "prod | dev | optional | peer" } ] }
-
-// Release verification result
-{ "release_id": "0x…", "status": "match | mismatch | no_record | unavailable", "manifest_hash": "0x…" }
-// "no_record" is an evidence gap, not a risk signal. "match" is not a safety verdict.
+{
+  "scan_id": "uuid",
+  "status": "accepted",            // accepted | analyzing | complete | failed
+  "created_at": "2026-10-12T10:00:00Z",
+  "project_name": "my-app",        // or null
+  "error": null,                   // human-readable reason when status = failed
+  "summary": {                     // null until status = complete
+    "packages": 120, "direct": 8, "transitive": 112, "findings": 2
+  }
+}
 ```
+
+### Graph — `GET /api/scans/{scan_id}/graph`
+
+Node `id` is `name@version`, so multiple installed versions stay distinct.
+
+```jsonc
+{
+  "scan_id": "uuid",
+  "root": "my-app@1.0.0",
+  "nodes": [
+    { "id": "ms@2.1.3", "name": "ms", "version": "2.1.3",
+      "direct": true, "dev": false, "lockfile_paths": ["node_modules/ms"] }
+  ],
+  "edges": [ { "from": "my-app@1.0.0", "to": "ms@2.1.3", "type": "prod" } ]   // prod | dev | optional | peer
+}
+```
+
+### Findings — `GET /api/scans/{scan_id}/findings`
+
+Every finding carries evidence; no evidence, no finding. `severity` and `confidence` are independent.
+
+```jsonc
+{
+  "scan_id": "uuid",
+  "findings": [
+    {
+      "id": "uuid",
+      "rule_id": "new-dependency",
+      "package": "example-pkg", "version": "1.2.0",
+      "severity": "medium",          // info | low | medium | high
+      "confidence": "high",          // low | medium | high
+      "title": "Short, factual headline",
+      "explanation": "Why this was flagged and what to check.",
+      "evidence": [
+        { "source": "lockfile", "field": "packages.node_modules/example-pkg.version", "value": "1.2.0", "observed_at": null }
+      ],                              // source: lockfile | npm-registry | release-registry
+      "unknowns": ["Publisher history unavailable"],
+      "paths": [["my-app@1.0.0", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // root → package, node ids from the graph
+    }
+  ]
+}
+```
+
+### Release verification — `POST /api/releases/verify`
+
+Request: `{ "package": "ms", "version": "2.1.3" }`
+
+`release_id` is `keccak256(utf8("<name>@<version>"))` as 0x-prefixed hex — the same id used by `ReleaseRegistry.anchor` (see `contracts/README.md`).
+
+```jsonc
+{
+  "package": "ms", "version": "2.1.3",
+  "release_id": "0x…",
+  "status": "match",               // match | mismatch | no_record | unavailable
+  "manifest_hash": "0x…",          // hash recomputed now; null if it could not be computed
+  "anchored_hash": "0x…",          // hash stored on-chain; null if no record
+  "anchored_at": "2026-10-12T10:00:00Z",   // null if no record
+  "manifest": { "schema_version": 1, "name": "ms", "version": "2.1.3", "integrity": "sha512-…" },  // canonical fields, or null
+  "registry": { "network": "hardhat-local", "chain_id": 31337, "address": "0x…" },             // null if not configured
+  "detail": null                   // reason when status = unavailable
+}
+```
+
+Interpretation rules (UI and API must both follow):
+
+- `match` — metadata equals the approved record. **Not** a safety verdict.
+- `mismatch` — metadata differs from the approved record; investigate.
+- `no_record` — evidence gap, **not** a risk signal. Must not be reported as a mismatch.
+- `unavailable` — chain or metadata unreachable; say so, don't guess.
 
 ## Compatibility rules
 

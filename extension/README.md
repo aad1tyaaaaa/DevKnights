@@ -2,23 +2,26 @@
 
 **Trust Every Dependency. Verify Every Release.**
 
-Provenyx helps JavaScript and TypeScript developers investigate the npm dependencies recorded in a project's `package-lock.json`.
+Provenyx helps JavaScript and TypeScript developers investigate the npm dependencies recorded in a project's `package-lock.json`, without installing or running any of them.
 
-> **Preview (0.1.0).** This release sets up the extension, sidebar, and connection to the Provenyx API. **Dependency analysis is not implemented yet** — a scan currently validates your lockfile and submits it to the API, which acknowledges it. No findings, risk scores, or verdicts are produced.
+> **Preview.** The extension needs a running Provenyx API (see [Requirements](#requirements)). Dependency analysis is being rolled out on the API side. Until your API provides analysis results, a scan is validated and acknowledged, and the sidebar says that no findings are available yet. Provenyx never shows invented findings.
 
 ## Features
 
-- **Provenyx: Scan Dependencies** — finds `package-lock.json` in your workspace, checks that it is valid, and (after you confirm) sends it to the Provenyx API.
-- **Provenyx: Show Findings** — opens the Provenyx sidebar showing the project, backend connection state, and last scan status.
-- **Provenyx: Open Dashboard** — opens the Provenyx web dashboard.
-- **Provenyx: Check Backend Connection** — checks that the configured API is reachable.
+- **Provenyx: Scan Dependencies.** Finds `package-lock.json` in your workspace (lockfile versions 1–3), checks it locally, and sends it to the Provenyx API after you confirm.
+- **Findings sidebar.** Lists findings by severity, each with confidence, a plain-language explanation, and the dependency path that pulls the package into your project. Click a finding to investigate it in the web dashboard.
+- **Scan status.** Shows the backend connection and the progress of your last scan.
+- **Provenyx: Open Dashboard.** Opens the Provenyx web dashboard with the dependency graph, evidence, and release-record verification.
+- **Provenyx: Check Backend Connection.** Checks that the configured API is reachable.
+
+Findings are leads to investigate, not proof of compromise. When a release matches a blockchain-anchored record, its metadata is unchanged, but that does not prove the package is safe. A release with no record is not suspicious in itself.
 
 ## Privacy and safety
 
 - Provenyx **never installs, builds, or executes** packages from your project and never runs lifecycle scripts.
-- Your lockfile is sent **only after you confirm** each scan, and only to the URL in `provenyx.apiBaseUrl` (by default a backend running on your own machine, `http://localhost:8000`).
+- Your lockfile is sent **only after you confirm** each scan, and only to the URL in `provenyx.apiBaseUrl`. By default that is a backend on your own machine, `http://localhost:8000`.
 - Only `package-lock.json` is sent. No other files, credentials, or tokens are uploaded.
-- On startup the extension calls the API's `/health` endpoint to show the connection state; this sends no project data.
+- On startup and before each scan, the extension calls the API's `/health` endpoint to show the connection state. This sends no project data.
 - The extension collects no telemetry.
 
 ## Settings
@@ -26,13 +29,13 @@ Provenyx helps JavaScript and TypeScript developers investigate the npm dependen
 | Setting | Default | Description |
 | --- | --- | --- |
 | `provenyx.apiBaseUrl` | `http://localhost:8000` | Provenyx API base URL. Lockfiles are only sent here after confirmation. |
-| `provenyx.dashboardUrl` | `http://localhost:3000` | URL opened by **Open Dashboard**. |
+| `provenyx.dashboardUrl` | `http://localhost:3000` | URL opened by **Open Dashboard** and by clicking findings. |
 | `provenyx.autoScanEnabled` | `false` | Offer to scan when `package-lock.json` changes. You are still asked before anything is sent. |
 
 ## Requirements
 
-A running Provenyx API. During development, see the repository's `docs/development.md`.
+A running Provenyx API. The Visual Studio Marketplace hosts only the extension, not the API. To run the API and dashboard locally, follow [the development guide](https://github.com/aad1tyaaaaa/DevKnights/blob/main/docs/development.md).
 
 ## Support
 
-See the repository's issue tracker (to be published).
+Report issues at <https://github.com/aad1tyaaaaa/DevKnights/issues>.

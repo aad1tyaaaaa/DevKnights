@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
 import type { FindingsTreeProvider } from '../providers/findingsTreeProvider';
-import { ApiError, apiBaseUrl, checkHealth, submitScan } from '../services/apiClient';
+import type { Finding } from '../types';
+import { ApiError, apiBaseUrl, checkHealth, getFindings, getScan, submitScan } from '../services/apiClient';
+import { openDashboard, scanPath } from '../utils/dashboard';
 import { findLockfiles, projectName, readLockfile } from '../utils/workspace';
 
 const CLIENT = 'vscode-extension/0.1.0';
+const POLL_INTERVAL_MS = 2_000;
+const POLL_LIMIT_MS = 120_000;
 
 /**
  * Reads a package-lock.json and, after explicit confirmation, sends it to the Provenyx API.
@@ -41,7 +45,7 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
   );
   if (choice !== send) return;
 
-  await vscode.window.withProgress(
+  const scanId = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Notification, title: 'Provenyx: Submitting lockfile…' },
     async () => {
       try {
@@ -50,17 +54,68 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
       } catch (err) {
         tree.setBackend('unreachable');
         fail(tree, err);
-        return;
+        return undefined;
       }
       try {
         const res = await submitScan({ lockfile, project_name: lockfile.name ?? projectName(), client: CLIENT });
-        tree.setLastScan({ kind: 'accepted', scanId: res.scan_id, message: res.message, at: new Date() });
-        void vscode.window.showInformationMessage(`Provenyx: ${res.message}`);
+        tree.setLastScan({ kind: 'in-progress', scanId: res.scan_id, status: 'accepted', message: res.message, at: new Date() });
+        void vscode.window.showInformationMessage(`Provenyx: ${res.message}`, 'Open in Dashboard').then((pick) => {
+          if (pick) void openDashboard(scanPath(res.scan_id));
+        });
+        return res.scan_id;
       } catch (err) {
         fail(tree, err);
+        return undefined;
       }
     },
   );
+
+  if (scanId) await followScan(tree, scanId);
+}
+
+/**
+ * Polls the scan until it completes or fails, then loads findings.
+ * Stops quietly if the API does not provide scan status yet, or if a newer scan replaced this one.
+ */
+async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<void> {
+  const isCurrent = () => {
+    const s = tree.lastScan;
+    return s.kind === 'in-progress' && s.scanId === scanId;
+  };
+  const deadline = Date.now() + POLL_LIMIT_MS;
+
+  while (Date.now() < deadline && isCurrent()) {
+    let scan;
+    try {
+      scan = await getScan(scanId);
+    } catch {
+      return; // transient error: keep the "accepted" state; the dashboard can still show the scan
+    }
+    if (!scan || !isCurrent()) return;
+
+    if (scan.status === 'failed') {
+      fail(tree, new ApiError(scan.error ?? 'The scan failed.'), scanId);
+      return;
+    }
+    if (scan.status === 'complete') {
+      let findings: Finding[] | undefined;
+      try {
+        findings = (await getFindings(scanId))?.findings;
+      } catch {
+        findings = undefined;
+      }
+      if (!isCurrent()) return;
+      tree.setLastScan({ kind: 'complete', scan, findings, at: new Date() });
+      if (findings?.length) {
+        void vscode.window
+          .showInformationMessage(`Provenyx: ${findings.length} finding(s) to review.`, 'Show Findings')
+          .then((pick) => pick && vscode.commands.executeCommand('provenyx.showFindings'));
+      }
+      return;
+    }
+    tree.setLastScan({ kind: 'in-progress', scanId, status: scan.status, message: 'Analysis in progress.', at: new Date() });
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
 }
 
 async function pickLockfile(): Promise<vscode.Uri | undefined> {
@@ -77,8 +132,8 @@ async function pickLockfile(): Promise<vscode.Uri | undefined> {
   return picked?.uri;
 }
 
-function fail(tree: FindingsTreeProvider, err: unknown): void {
+function fail(tree: FindingsTreeProvider, err: unknown, scanId?: string): void {
   const message = err instanceof ApiError ? err.message : 'Unexpected error while contacting the Provenyx API.';
-  tree.setLastScan({ kind: 'failed', message, at: new Date() });
+  tree.setLastScan({ kind: 'failed', scanId, message, at: new Date() });
   void vscode.window.showErrorMessage(`Provenyx: ${message}`);
 }

@@ -63,7 +63,11 @@ Automated check (downloads and launches a real VS Code instance, then verifies a
 
 ```bash
 npm --prefix extension run test:smoke
+# also run one real scan against a running backend:
+PROVENYX_SMOKE_REAL_API=http://127.0.0.1:8000 npm --prefix extension run test:smoke
 ```
+
+The smoke test confirms the consent dialog automatically and uses a throwaway in-test API (synthetic data) to check the scan → findings flow and the offline-backend case.
 
 ## 5. Check backend connectivity
 
@@ -78,6 +82,8 @@ In VS Code: **Provenyx: Check Backend Connection**, or look at *Backend* in the 
 ## 6. Scan the sample lockfile
 
 In the Extension Development Host (opened on `demo/sample-project`): **Provenyx: Scan Dependencies** → confirm **Send to Provenyx API**. Expect: “Lockfile received. Dependency analysis is not implemented in Phase 1.” and *Last scan: Accepted* in the sidebar.
+
+From the dashboard: open <http://localhost:3000/scan/new>, choose `demo/sample-project/package-lock.json`, tick the consent box, and click **Start scan**.
 
 Without VS Code (Git Bash / macOS / Linux):
 
@@ -101,14 +107,17 @@ npm run package:extension    # → extension/provenyx-security-0.1.0.vsix
 code --install-extension extension/provenyx-security-0.1.0.vsix
 ```
 
-## Contracts
+## Contracts (local chain)
 
 ```bash
 npm run compile:contracts
 npm run test:contracts
+npm --prefix contracts run node          # terminal 3: local chain on :8545 (keep running)
+npm --prefix contracts run deploy:local  # writes contracts/deployments/localhost.json for the backend
+npm --prefix contracts run anchor:local  # anchors hashes from contracts/anchors.json
 ```
 
-See `contracts/README.md` for local node and deployment.
+See `contracts/README.md` for the release id format and how verification results map to API statuses.
 
 ## Ports
 

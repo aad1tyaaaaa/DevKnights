@@ -7,7 +7,10 @@
   "scripts": {
     "compile": "hardhat build",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.ts"
+    "deploy": "hardhat run scripts/deploy.ts",
+    "deploy:local": "hardhat run --network localhost scripts/deploy.ts",
+    "anchor:local": "hardhat run --network localhost scripts/anchor.ts",
+    "node": "hardhat node"
   },
   "type": "module",
   "private": "true",

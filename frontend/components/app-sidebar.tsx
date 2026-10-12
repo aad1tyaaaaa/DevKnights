@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { History, LayoutDashboard, Settings } from 'lucide-react'
+import { FilePlus2, History, LayoutDashboard, Settings } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/scan/new', label: 'New scan', icon: FilePlus2 },
   { href: '/scans', label: 'Scans', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -15,7 +16,7 @@ const NAV = [
 function NavLinks({ horizontal = false }: { horizontal?: boolean }) {
   const pathname = usePathname()
   return (
-    <nav aria-label="Main" className={cn('flex gap-1', horizontal ? 'flex-row' : 'flex-col')}>
+    <nav aria-label="Main" className={cn('flex gap-1', horizontal ? '-mx-1 flex-row overflow-x-auto px-1' : 'flex-col')}>
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`)
         return (
@@ -24,7 +25,7 @@ function NavLinks({ horizontal = false }: { horizontal?: boolean }) {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-mint',
+              'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-mint',
               active ? 'bg-sidebar-accent text-white' : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-white',
             )}
           >

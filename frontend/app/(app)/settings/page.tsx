@@ -46,7 +46,7 @@ export default function SettingsPage() {
             Run <strong>Provenyx: Scan Dependencies</strong> and confirm the prompt.
           </li>
         </ol>
-        <div className="mt-6 overflow-x-auto">
+        <div className="relative mt-6 overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
             <caption className="sr-only">VS Code extension settings</caption>
             <thead className="text-[11px] uppercase tracking-wider text-ink-muted">

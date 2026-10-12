@@ -1,19 +1,28 @@
-export function PageHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string
+  title: string
+  description?: React.ReactNode
+  action?: React.ReactNode
+}) {
   return (
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-leaf">{eyebrow}</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{title}</h1>
-      {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">{description}</p>}
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[.18em] text-leaf">{eyebrow}</p>
+        <h1 className="mt-2 break-words text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{title}</h1>
+        {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">{description}</p>}
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
 
-export function EmptyState({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center rounded-xl border border-dashed border-line bg-white px-6 py-14 text-center">
-      <span className="grid size-11 place-items-center rounded-xl bg-mint-soft text-leaf">{icon}</span>
-      <h2 className="mt-4 font-semibold text-ink">{title}</h2>
-      <div className="mt-2 max-w-md text-sm leading-6 text-ink-muted">{children}</div>
-    </div>
-  )
-}
+export const primaryButton =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-forest px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#225b3c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'
+
+export const secondaryButton =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'
