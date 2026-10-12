@@ -32,6 +32,11 @@ function startFakeApi(mode) {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       if (req.method === 'GET' && req.url === '/health') return send(200, { status: 'ok', service: 'provenyx-api', version: '0.1.0' });
+      if (req.method === 'POST' && req.url === '/api/github/auth/extension') {
+        assert.strictEqual(req.headers.authorization, 'Bearer synthetic-github-token');
+        server.handoffs = (server.handoffs ?? 0) + 1;
+        return send(200, { url: 'https://dashboard.example/session' });
+      }
       if (req.method === 'POST' && req.url === '/api/scans') {
         const parsed = JSON.parse(body);
         assert.strictEqual(parsed.lockfile.lockfileVersion, 3, 'extension must send the parsed lockfile');
@@ -75,7 +80,7 @@ async function runChecks() {
   assert.ok(ext.isActive, 'extension did not activate');
 
   const commands = await vscode.commands.getCommands(true);
-  for (const id of ['provenyx.scanDependencies', 'provenyx.showFindings', 'provenyx.openDashboard', 'provenyx.checkBackend']) {
+  for (const id of ['provenyx.scanDependencies', 'provenyx.showFindings', 'provenyx.openDashboard', 'provenyx.checkBackend', 'provenyx.signIn']) {
     assert.ok(commands.includes(id), `missing command ${id}`);
   }
   await vscode.commands.executeCommand('provenyx.showFindings'); // throws if the view is not registered

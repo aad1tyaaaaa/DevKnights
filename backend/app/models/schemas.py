@@ -57,6 +57,16 @@ class GitHubAuthStatus(BaseModel):
     avatar_url: str | None = None
 
 
+class GitHubExtensionHandoffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    next: str = Field(default="/dashboard", max_length=512)
+
+
+class GitHubExtensionHandoffResponse(BaseModel):
+    url: str
+
+
 class GitHubRepository(BaseModel):
     id: int
     name: str

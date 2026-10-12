@@ -9,7 +9,9 @@
     "test": "hardhat test",
     "deploy": "hardhat run scripts/deploy.ts",
     "deploy:local": "hardhat run --network localhost scripts/deploy.ts",
+    "deploy:sepolia": "hardhat run --network sepolia scripts/deploy.ts",
     "anchor:local": "hardhat run --network localhost scripts/anchor.ts",
+    "anchor:sepolia": "hardhat run --network sepolia scripts/anchor.ts",
     "node": "hardhat node"
   },
   "type": "module",

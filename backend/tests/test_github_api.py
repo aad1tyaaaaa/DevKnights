@@ -6,17 +6,23 @@ import httpx
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from app.api.routes import get_github_service
+from app.api.routes import GITHUB_SESSION_COOKIE, get_github_service, get_scan_service
 from app.core.config import Settings
 from app.github import GitHubService
 from app.main import app
+from app.models.database import ScanRepository
+from app.parsers.npm_registry import NpmRegistryClient
+from app.services import ScanService
 
 
 def github_handler(request: httpx.Request) -> httpx.Response:
     if request.url.path == "/login/oauth/access_token":
         return httpx.Response(200, json={"access_token": "github-token"})
     if request.url.path == "/user":
-        return httpx.Response(200, json={"login": "octocat", "avatar_url": "https://avatars.example/octocat"})
+        return httpx.Response(
+            200,
+            json={"id": 1, "login": "octocat", "avatar_url": "https://avatars.example/octocat"},
+        )
     if request.url.path == "/user/repos":
         assert request.headers["authorization"] == "Bearer github-token"
         return httpx.Response(
@@ -130,6 +136,76 @@ def test_github_repositories_require_connection() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Connect a GitHub account first"
+
+
+def test_github_sessions_cannot_read_each_others_scans(tmp_path) -> None:
+    def identity_handler(request: httpx.Request) -> httpx.Response:
+        token = request.headers["authorization"].removeprefix("Bearer ")
+        return httpx.Response(200, json={"id": 1 if token == "token-a" else 2, "login": token})
+
+    github = GitHubService(configured_github().settings, transport=httpx.MockTransport(identity_handler))
+    service = ScanService(
+        ScanRepository(f"sqlite:///{tmp_path / 'isolated.db'}"),
+        NpmRegistryClient(transport=httpx.MockTransport(lambda request: httpx.Response(404)), retries=0),
+    )
+    app.dependency_overrides[get_github_service] = lambda: github
+    app.dependency_overrides[get_scan_service] = lambda: service
+
+    with TestClient(app) as client:
+        client.cookies.set(GITHUB_SESSION_COOKIE, github.codec.encode({"token": "token-a"}, 3600))
+        own_scan = client.post(
+            "/api/scans",
+            json={"lockfile": {"name": "alice", "lockfileVersion": 3, "packages": {"": {"name": "alice"}}}},
+        ).json()["scan_id"]
+
+        client.cookies.set(GITHUB_SESSION_COOKIE, github.codec.encode({"token": "token-b"}, 3600))
+        other_scan = client.post(
+            "/api/scans",
+            json={"lockfile": {"name": "bob", "lockfileVersion": 3, "packages": {"": {"name": "bob"}}}},
+        ).json()["scan_id"]
+
+        scans = client.get("/api/scans")
+        assert [scan["scan_id"] for scan in scans.json()] == [other_scan]
+        assert scans.headers["cache-control"] == "private, no-store"
+        assert {value.strip() for value in scans.headers["vary"].split(",")} >= {"Authorization", "Cookie"}
+        assert client.get(f"/api/scans/{own_scan}").status_code == 404
+
+    app.dependency_overrides.clear()
+
+
+def test_extension_github_session_hands_off_to_browser_once() -> None:
+    github = configured_github()
+    app.dependency_overrides[get_github_service] = lambda: github
+
+    with TestClient(app, follow_redirects=False) as client:
+        handoff = client.post(
+            "/api/github/auth/extension",
+            headers={"Authorization": "Bearer github-token"},
+            json={"next": "/dashboard"},
+        )
+        assert handoff.status_code == 200
+        callback_path = urlparse(handoff.json()["url"]).path + "?" + urlparse(handoff.json()["url"]).query
+
+        callback = client.get(callback_path)
+        assert callback.status_code == 307
+        assert callback.headers["location"] == "http://localhost:3000/dashboard?connected=1"
+        assert client.get("/api/github/auth/status").json()["login"] == "octocat"
+
+        replay = client.get(callback_path)
+        assert replay.headers["location"] == "http://localhost:3000/github?github_error=invalid_extension_handoff"
+
+    app.dependency_overrides.pop(get_github_service, None)
+
+
+def test_extension_github_session_requires_bearer_token() -> None:
+    github = configured_github()
+    app.dependency_overrides[get_github_service] = lambda: github
+    with TestClient(app) as client:
+        response = client.post("/api/github/auth/extension", json={"next": "/dashboard"})
+    app.dependency_overrides.pop(get_github_service, None)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "A GitHub bearer token is required"
 
 
 def test_github_scan_rejects_unsafe_lockfile_path() -> None:

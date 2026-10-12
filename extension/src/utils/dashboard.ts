@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { createGitHubBrowserHandoff } from '../services/apiClient';
+import { requireGitHubSession } from '../services/githubAuth';
+import { showApiError } from './errors';
 
 export function dashboardUrl(path = ''): string {
   const base = vscode.workspace.getConfiguration('provenyx').get<string>('dashboardUrl', 'http://localhost:3000');
@@ -12,7 +15,16 @@ export function scanPath(scanId: string, findingId?: string): string {
 
 /** Opens a dashboard page in the browser. Only http(s) URLs are allowed. */
 export async function openDashboard(path = ''): Promise<void> {
-  const url = dashboardUrl(path);
+  const session = await requireGitHubSession();
+  if (!session) return;
+
+  let url: string;
+  try {
+    url = (await createGitHubBrowserHandoff(session.accessToken, path || '/dashboard')).url;
+  } catch (err) {
+    void showApiError(err);
+    return;
+  }
   let uri: vscode.Uri;
   try {
     uri = vscode.Uri.parse(url, true);

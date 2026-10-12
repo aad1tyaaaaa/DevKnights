@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import time
@@ -105,6 +106,19 @@ class GitHubService:
     async def get_user(self, token: str) -> dict[str, Any]:
         response = await self._get("/user", token)
         return response.json()
+
+    def subject(self, user: dict[str, Any]) -> str:
+        user_id = user.get("id")
+        if not isinstance(user_id, (int, str)):
+            raise GitHubApiError(502, "GitHub did not return a user ID")
+        secret = self.settings.github_session_secret
+        if secret is None:
+            raise RuntimeError("GitHub authentication is not configured")
+        return hmac.new(
+            secret.get_secret_value().encode("utf-8"),
+            f"github:{user_id}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
 
     async def list_repositories(self, token: str) -> list[GitHubRepository]:
         repositories: list[GitHubRepository] = []

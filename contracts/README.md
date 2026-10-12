@@ -1,6 +1,6 @@
 # Provenyx contracts
 
-Hardhat 3 workspace for the Provenyx release registry. **Local development only.** No public network, wallet, paid RPC provider, or real cryptocurrency is required or configured.
+Hardhat 3 workspace for the Provenyx release registry. Local development uses an in-process chain; production verification can use a registry deployed to Ethereum Sepolia.
 
 ## Commands
 
@@ -11,10 +11,39 @@ npm test                 # node:test + viem tests on the in-process Hardhat netw
 npm run node             # persistent local chain on http://127.0.0.1:8545 (chain id 31337) — keep running
 npm run deploy:local     # deploy to that chain; writes deployments/localhost.json
 npm run anchor:local     # anchor hashes listed in anchors.json (copy from anchors.example.json)
+npm run deploy:sepolia   # deploy to Sepolia; writes deployments/sepolia.json
+npm run anchor:sepolia   # anchor hashes listed in anchors.json on Sepolia
 npm run deploy           # deploy to a throwaway in-process chain (smoke check only)
 ```
 
 Restarting `npm run node` wipes the chain. Re-run `deploy:local` and `anchor:local` afterwards.
+
+## Deploying to Sepolia
+
+Fund a dedicated deployment wallet with Sepolia ETH, then store the Sepolia RPC URL and wallet private key in Hardhat's encrypted keystore:
+
+```bash
+npx hardhat keystore set SEPOLIA_RPC_URL
+npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```
+
+Enter the values when prompted. The private key must include its `0x` prefix. Never commit it or add it to Render or Vercel.
+
+Deploy the registry:
+
+```bash
+npm run deploy:sepolia
+```
+
+The command prints the contract address and writes it to `deployments/sepolia.json`. Configure the deployed backend with read-only credentials:
+
+```env
+PROVENYX_REGISTRY_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/<ALCHEMY_KEY>
+PROVENYX_REGISTRY_ADDRESS=0x<DEPLOYED_CONTRACT_ADDRESS>
+PROVENYX_REGISTRY_TIMEOUT_SECONDS=5
+```
+
+The deployment wallet remains the registry owner. To add approved releases, generate `anchors.json` as described below and run `npm run anchor:sepolia` from the same machine and Hardhat keystore.
 
 ## Contract: `ReleaseRegistry.sol`
 

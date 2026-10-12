@@ -26,6 +26,16 @@ app = FastAPI(title="Provenyx API", version=__version__, lifespan=lifespan)
 
 
 @app.middleware("http")
+async def prevent_authenticated_response_caching(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/api/github", "/api/scans")):
+        response.headers["Cache-Control"] = "private, no-store"
+        vary = {value.strip() for value in response.headers.get("Vary", "").split(",") if value.strip()}
+        response.headers["Vary"] = ", ".join(sorted(vary | {"Authorization", "Cookie"}))
+    return response
+
+
+@app.middleware("http")
 async def require_api_key(request: Request, call_next):
     # A middleware rather than per-route dependencies, so routes added later are protected by default.
     return api_key_rejection(request) or await call_next(request)

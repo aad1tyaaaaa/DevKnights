@@ -1,6 +1,8 @@
 import hmac
 import json
 import secrets
+import threading
+import time
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -25,6 +27,8 @@ from app.models.schemas import (
     GateReport,
     GateRequest,
     GitHubAuthStatus,
+    GitHubExtensionHandoffRequest,
+    GitHubExtensionHandoffResponse,
     GitHubRepository,
     GitHubScanRequest,
     HealthResponse,
@@ -44,6 +48,10 @@ GITHUB_SESSION_COOKIE = "provenyx_github_session"
 GITHUB_STATE_COOKIE = "provenyx_github_oauth_state"
 GITHUB_SESSION_MAX_AGE = 8 * 60 * 60
 GITHUB_STATE_MAX_AGE = 10 * 60
+GITHUB_EXTENSION_HANDOFF_MAX_AGE = 60
+LOCAL_SCAN_OWNER = "local-development"
+_github_extension_handoffs: dict[str, tuple[str, str, str, float]] = {}
+_github_extension_handoffs_lock = threading.Lock()
 finding_ranker = (
     GeminiFindingRanker(
         api_key=settings.gemini_api_key.get_secret_value(),
@@ -111,9 +119,56 @@ def _github_token(request: Request, github: GitHubService) -> str:
     return token
 
 
+async def _github_credentials(request: Request, github: GitHubService) -> tuple[str, str]:
+    if not github.configured:
+        return "", LOCAL_SCAN_OWNER
+    session = github.codec.decode(request.cookies.get(GITHUB_SESSION_COOKIE))
+    token = session.get("token") if session else None
+    subject = session.get("subject") if session else None
+    if not isinstance(token, str):
+        token = _github_bearer_token(request)
+    if isinstance(subject, str):
+        return token, subject
+    try:
+        return token, github.subject(await github.get_user(token))
+    except GitHubApiError as exc:
+        raise _github_error(exc)
+
+
 def _github_error(exc: GitHubApiError) -> HTTPException:
     code = exc.status_code if exc.status_code in (401, 403, 404, 413, 422) else 502
     return HTTPException(code, exc.detail)
+
+
+def _github_bearer_token(request: Request) -> str:
+    scheme, separator, token = request.headers.get("Authorization", "").partition(" ")
+    if not separator or scheme.lower() != "bearer" or not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "A GitHub bearer token is required")
+    return token
+
+
+def _create_github_extension_handoff(token: str, subject: str, next_path: str) -> str:
+    now = time.monotonic()
+    code = secrets.token_urlsafe(32)
+    with _github_extension_handoffs_lock:
+        expired = [key for key, value in _github_extension_handoffs.items() if value[3] <= now]
+        for key in expired:
+            del _github_extension_handoffs[key]
+        _github_extension_handoffs[code] = (
+            token,
+            subject,
+            safe_next_path(next_path),
+            now + GITHUB_EXTENSION_HANDOFF_MAX_AGE,
+        )
+    return code
+
+
+def _consume_github_extension_handoff(code: str) -> tuple[str, str, str] | None:
+    with _github_extension_handoffs_lock:
+        value = _github_extension_handoffs.pop(code, None)
+    if value is None or value[3] <= time.monotonic():
+        return None
+    return value[0], value[1], value[2]
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -162,6 +217,47 @@ def _frontend_redirect(path: str, **query: str) -> RedirectResponse:
     return RedirectResponse(f"{settings.frontend_url.rstrip('/')}{path}{separator}{urlencode(query)}")
 
 
+@router.post("/api/github/auth/extension", response_model=GitHubExtensionHandoffResponse)
+async def github_extension_handoff(
+    body: GitHubExtensionHandoffRequest,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
+) -> GitHubExtensionHandoffResponse:
+    if not github.configured:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "GitHub authentication is not configured")
+    token = _github_bearer_token(request)
+    try:
+        user = await github.get_user(token)
+    except GitHubApiError as exc:
+        raise _github_error(exc)
+    code = _create_github_extension_handoff(token, github.subject(user), body.next)
+    query = urlencode({"code": code})
+    return GitHubExtensionHandoffResponse(
+        url=f"{settings.frontend_url.rstrip('/')}/api/github/auth/extension/callback?{query}"
+    )
+
+
+@router.get("/api/github/auth/extension/callback")
+def github_extension_callback(
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    code: str = "",
+) -> RedirectResponse:
+    handoff = _consume_github_extension_handoff(code)
+    if handoff is None:
+        return _frontend_redirect(DEFAULT_AFTER_LOGIN, github_error="invalid_extension_handoff")
+    token, subject, next_path = handoff
+    response = _frontend_redirect(next_path, connected="1")
+    response.set_cookie(
+        GITHUB_SESSION_COOKIE,
+        github.codec.encode({"token": token, "subject": subject}, GITHUB_SESSION_MAX_AGE),
+        max_age=GITHUB_SESSION_MAX_AGE,
+        httponly=True,
+        secure=settings.cookies_secure,
+        samesite="lax",
+    )
+    return response
+
+
 @router.get("/api/github/auth/login")
 def github_auth_login(
     github: Annotated[GitHubService, Depends(get_github_service)],
@@ -198,13 +294,14 @@ async def github_auth_callback(
         return _frontend_redirect(after_login, github_error=error or "invalid_oauth_state")
     try:
         token = await github.exchange_code(code)
+        user = await github.get_user(token)
     except GitHubApiError as exc:
         return _frontend_redirect(after_login, github_error=exc.detail)
     response = _frontend_redirect(after_login, connected="1")
     response.delete_cookie(GITHUB_STATE_COOKIE)
     response.set_cookie(
         GITHUB_SESSION_COOKIE,
-        github.codec.encode({"token": token}, GITHUB_SESSION_MAX_AGE),
+        github.codec.encode({"token": token, "subject": github.subject(user)}, GITHUB_SESSION_MAX_AGE),
         max_age=GITHUB_SESSION_MAX_AGE,
         httponly=True,
         secure=settings.cookies_secure,
@@ -255,9 +352,10 @@ async def create_github_scan(
     github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> ScanAccepted:
+    token, owner_id = await _github_credentials(request, github)
     try:
         content = await github.fetch_lockfile(
-            _github_token(request, github), body.owner, body.repository, body.lockfile_path, settings.max_scan_bytes
+            token, body.owner, body.repository, body.lockfile_path, settings.max_scan_bytes
         )
     except GitHubApiError as exc:
         raise _github_error(exc)
@@ -271,7 +369,7 @@ async def create_github_scan(
         )
     except (json.JSONDecodeError, UnicodeDecodeError, ValidationError) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Repository package-lock.json is invalid") from exc
-    scan_id = service.create_scan(lockfile.lockfile.model_dump(mode="json"), lockfile.project_name)
+    scan_id = service.create_scan(lockfile.lockfile.model_dump(mode="json"), lockfile.project_name, owner_id)
     background_tasks.add_task(service.analyze_scan, scan_id)
     return ScanAccepted(
         scan_id=scan_id,
@@ -290,6 +388,7 @@ async def create_github_scan(
 async def create_scan(
     request: Request,
     background_tasks: BackgroundTasks,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> ScanAccepted:
     if not request.headers.get("content-type", "").startswith("application/json"):
@@ -297,7 +396,8 @@ async def create_scan(
 
     scan_request = _validate(ScanRequest, await _read_capped_body(request, settings.max_scan_bytes))
 
-    scan_id = service.create_scan(scan_request.lockfile.model_dump(mode="json"), scan_request.project_name)
+    _, owner_id = await _github_credentials(request, github)
+    scan_id = service.create_scan(scan_request.lockfile.model_dump(mode="json"), scan_request.project_name, owner_id)
     background_tasks.add_task(service.analyze_scan, scan_id)
     return ScanAccepted(
         scan_id=scan_id,
@@ -350,11 +450,14 @@ def _validate(model, body: bytes):
 
 
 @router.get("/api/scans/{scan_id}", response_model=ScanDetail)
-def get_scan(
+async def get_scan(
     scan_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> ScanDetail:
-    row = service.repository.get(scan_id)
+    _, owner_id = await _github_credentials(request, github)
+    row = service.repository.get_owned(scan_id, owner_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
     return ScanDetail(
@@ -369,11 +472,14 @@ def get_scan(
 
 
 @router.get("/api/scans", response_model=list[ScanDetail])
-def list_scans(
+async def list_scans(
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ScanDetail]:
+    _, owner_id = await _github_credentials(request, github)
     return [
         ScanDetail(
             scan_id=row.scan_id,
@@ -384,16 +490,19 @@ def list_scans(
             warnings=row.warnings,
             error=row.error,
         )
-        for row in service.repository.list_recent(limit, offset)
+        for row in service.repository.list_recent(owner_id, limit, offset)
     ]
 
 
 @router.get("/api/scans/{scan_id}/graph", response_model=ScanGraph)
-def get_scan_graph(
+async def get_scan_graph(
     scan_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> ScanGraph:
-    row = service.repository.get(scan_id)
+    _, owner_id = await _github_credentials(request, github)
+    row = service.repository.get_owned(scan_id, owner_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
     if row.graph is None:
@@ -402,11 +511,14 @@ def get_scan_graph(
 
 
 @router.get("/api/scans/{scan_id}/findings", response_model=list[Finding])
-def get_scan_findings(
+async def get_scan_findings(
     scan_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> list[Finding]:
-    if service.repository.get(scan_id) is None:
+    _, owner_id = await _github_credentials(request, github)
+    if service.repository.get_owned(scan_id, owner_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
     return [Finding.model_validate(finding) for finding in service.repository.get_findings(scan_id)]
 
@@ -415,13 +527,16 @@ def get_scan_findings(
     "/api/scans/{scan_id}/compare/{baseline_scan_id}",
     response_model=ScanComparisonResponse,
 )
-def compare_scans(
+async def compare_scans(
     scan_id: str,
     baseline_scan_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
     service: Annotated[ScanService, Depends(get_scan_service)],
 ) -> ScanComparisonResponse:
+    _, owner_id = await _github_credentials(request, github)
     try:
-        return service.compare_scans(baseline_scan_id, scan_id)
+        return service.compare_scans(baseline_scan_id, scan_id, owner_id)
     except KeyError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
     except ValueError as exc:

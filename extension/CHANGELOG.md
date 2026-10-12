@@ -1,7 +1,14 @@
 # Changelog
 
+## 0.1.4
+
+- Use the deployed Render backend for API requests by default.
+
 ## 0.1.3
 
+- Request GitHub authentication in VS Code when the extension starts and require it before scanning.
+- Carry the authenticated GitHub session into dashboard links through a short-lived, single-use server handoff, avoiding a second website login.
+- Use the deployed Provenyx gateway and dashboard by default.
 - Discover and scan every supported dependency lockfile across local workspace folders.
 - Add local parsing and automatic change detection for pnpm v9 `pnpm-lock.yaml` files.
 - Preserve pnpm direct and transitive dependency edges without uploading source files.

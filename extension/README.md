@@ -12,6 +12,7 @@ Provenyx helps JavaScript and TypeScript developers investigate npm dependencies
 - **Findings sidebar.** Lists findings by severity, each with confidence, a plain-language explanation, and the dependency path that pulls the package into your project. Click a finding to investigate it in the web dashboard.
 - **Scan status.** Shows the backend connection and the progress of your last scan.
 - **Provenyx: Open Dashboard.** Opens the Provenyx web dashboard with the dependency graph, evidence, and release-record verification.
+- **GitHub sign-in.** Uses VS Code's built-in GitHub authentication when the extension starts. Dashboard links carry the signed-in session into the browser, so no second website login is required.
 - **Provenyx: Check Backend Connection.** Checks that the configured API is reachable.
 
 Findings are leads to investigate, not proof of compromise. When a release matches a blockchain-anchored record, its metadata is unchanged, but that does not prove the package is safe. A release with no record is not suspicious in itself.
@@ -33,8 +34,9 @@ Scan history in the web dashboard:
 ## Privacy and safety
 
 - Provenyx **never installs, builds, or executes** packages from your project and never runs lifecycle scripts.
-- Your lockfile is sent **only after you confirm** each scan, and only to the URL in `provenyx.apiBaseUrl`. By default that is a backend on your own machine, `http://localhost:8000`.
-- Only dependency data from `package-lock.json` or `pnpm-lock.yaml` is sent. No source files, credentials, or tokens are uploaded.
+- Your lockfile is sent **only after you confirm** each scan, and only to the URL in `provenyx.apiBaseUrl`.
+- Only dependency data from `package-lock.json` or `pnpm-lock.yaml` is sent. No source files or project credentials are uploaded.
+- VS Code securely stores the GitHub session. The extension sends its GitHub access token to the configured Provenyx API only for server-side validation and a short-lived, single-use dashboard handoff; the token is never placed in a URL or stored by the extension.
 - On startup and before each scan, the extension calls the API's `/health` endpoint to show the connection state. This sends no project data.
 - The extension collects no telemetry.
 
@@ -42,13 +44,13 @@ Scan history in the web dashboard:
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `provenyx.apiBaseUrl` | `http://localhost:8000` | Provenyx API base URL. Lockfiles are only sent here after confirmation. |
-| `provenyx.dashboardUrl` | `http://localhost:3000` | URL opened by **Open Dashboard** and by clicking findings. |
+| `provenyx.apiBaseUrl` | `https://devknights.onrender.com` | Provenyx API. Lockfiles are only sent here after confirmation. |
+| `provenyx.dashboardUrl` | `https://provenyx.vercel.app` | URL opened by **Open Dashboard** and by clicking findings. |
 | `provenyx.autoScanEnabled` | `true` | Scan supported lockfiles across all workspace folders when a project opens or a lockfile is created or changes. |
 
 ## Requirements
 
-A running Provenyx API. The Visual Studio Marketplace hosts only the extension, not the API. To run the API and dashboard locally, follow [the development guide](https://github.com/aad1tyaaaaa/DevKnights/blob/main/docs/development.md).
+GitHub authentication in VS Code. The public extension uses the deployed Provenyx API and dashboard. To run those services locally instead, follow [the development guide](https://github.com/aad1tyaaaaa/DevKnights/blob/main/docs/development.md).
 
 ## Support
 

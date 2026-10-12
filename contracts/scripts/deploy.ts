@@ -1,6 +1,7 @@
-// Deploys ReleaseRegistry to a local chain and writes deployments/<network>.json (address, chain id, ABI)
+// Deploys ReleaseRegistry and writes deployments/<network>.json (address, chain id, ABI)
 // for the backend to read.
 //   Persistent local node:   npx hardhat node   then   npm run deploy:local
+//   Ethereum Sepolia:         npm run deploy:sepolia
 //   Throwaway in-process:    npm run deploy
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";

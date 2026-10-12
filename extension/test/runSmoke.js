@@ -6,6 +6,7 @@ const { runTests } = require('@vscode/test-electron');
 const extensionDevelopmentPath = path.resolve(__dirname, '..');
 
 async function main() {
+  process.env.PROVENYX_AUTH_PROVIDER = 'provenyx-test';
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'provenyx-vscode-profile-'));
   fs.mkdirSync(path.join(userData, 'User'));
   fs.writeFileSync(path.join(userData, 'User/settings.json'), JSON.stringify({ 'provenyx.autoScanEnabled': false }));

@@ -219,7 +219,7 @@ Server logs, including the full error for any failed scan, are under **Logs** in
 
 ## Security notes
 
-- **The access key is shared, not per-user.** It stops anyone from calling the Render API directly; the dashboard adds it on the server, so it never appears in the browser. But scans are not yet owned by users: anyone who signs in to the dashboard can see every scan. Treat a deployment as a **team or demo workspace**, and don't scan lockfiles you couldn't share with everyone who has the link.
+- **The access key is shared, but scan access is per user.** It stops direct use of the Render API, while every scan is owned by an HMAC-pseudonymous GitHub user ID. Raw GitHub identity and tokens stay inside the AES-256-GCM encrypted session cookie; only the pseudonymous owner ID is stored with scans. Existing rows created before this migration have no owner and are intentionally hidden from signed-in users.
 - Keep `PROVENYX_GITHUB_CLIENT_SECRET`, `PROVENYX_GITHUB_SESSION_SECRET` and `PROVENYX_API_KEY` out of the repository. Set them only in the Render and Vercel dashboards. Rotating the session secret signs everyone out.
 - No package code is ever downloaded or executed, in production or in the trust gate.
 

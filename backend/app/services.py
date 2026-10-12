@@ -48,9 +48,9 @@ class ScanService:
         self.osv = osv
         self.finding_ranker = finding_ranker
 
-    def create_scan(self, lockfile: dict[str, Any], project_name: str | None) -> str:
+    def create_scan(self, lockfile: dict[str, Any], project_name: str | None, owner_id: str | None = None) -> str:
         scan_id = str(uuid.uuid4())
-        self.repository.create(scan_id, project_name, lockfile)
+        self.repository.create(scan_id, project_name, lockfile, owner_id)
         return scan_id
 
     async def analyze_scan(self, scan_id: str) -> None:
@@ -77,7 +77,9 @@ class ScanService:
                     detect_known_vulnerabilities(scan_graph, advisories=advisories, observed_at=row.created_at)
                 )
             baseline_row = (
-                self.repository.find_latest_complete(project_name, before=row.created_at, exclude_scan_id=scan_id)
+                self.repository.find_latest_complete(
+                    project_name, owner_id=row.owner_id, before=row.created_at, exclude_scan_id=scan_id
+                )
                 if project_name
                 else None
             )
@@ -158,9 +160,9 @@ class ScanService:
             await self.analyze_scan(scan_id)
         return scan_ids
 
-    def compare_scans(self, baseline_scan_id: str, current_scan_id: str) -> ScanComparisonResponse:
-        baseline_row = self.repository.get(baseline_scan_id)
-        current_row = self.repository.get(current_scan_id)
+    def compare_scans(self, baseline_scan_id: str, current_scan_id: str, owner_id: str) -> ScanComparisonResponse:
+        baseline_row = self.repository.get_owned(baseline_scan_id, owner_id)
+        current_row = self.repository.get_owned(current_scan_id, owner_id)
         if baseline_row is None or current_row is None:
             raise KeyError("Scan not found")
         if baseline_row.graph is None or current_row.graph is None:

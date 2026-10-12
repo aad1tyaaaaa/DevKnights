@@ -2,11 +2,12 @@ import * as vscode from 'vscode';
 import type { FindingsTreeProvider } from '../providers/findingsTreeProvider';
 import type { Finding } from '../types';
 import { ApiError, apiBaseUrl, checkHealth, getFindings, getScan, submitScan } from '../services/apiClient';
+import { requireGitHubSession } from '../services/githubAuth';
 import { openDashboard, scanPath } from '../utils/dashboard';
 import { showApiError } from '../utils/errors';
 import { findLockfiles, projectName, readLockfile } from '../utils/workspace';
 
-const CLIENT = 'vscode-extension/0.1.3';
+const CLIENT = 'vscode-extension/0.1.4';
 const POLL_INTERVAL_MS = 2_000;
 const POLL_LIMIT_MS = 120_000;
 
@@ -19,6 +20,9 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
     void vscode.window.showWarningMessage('Provenyx: Open a project folder to scan its dependencies.');
     return;
   }
+
+  const session = await requireGitHubSession();
+  if (!session) return;
 
   const uri = target ?? (await pickLockfile());
   if (!uri) return;
@@ -58,7 +62,10 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
         return undefined;
       }
       try {
-        const res = await submitScan({ lockfile, project_name: lockfile.name ?? projectName(), client: CLIENT });
+        const res = await submitScan(
+          { lockfile, project_name: lockfile.name ?? projectName(), client: CLIENT },
+          session.accessToken,
+        );
         tree.setLastScan({ kind: 'in-progress', scanId: res.scan_id, status: 'accepted', message: res.message, at: new Date() });
         void vscode.window.showInformationMessage(`Provenyx: ${res.message}`, 'Open in Dashboard').then((pick) => {
           if (pick) void openDashboard(scanPath(res.scan_id));
@@ -71,14 +78,14 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
     },
   );
 
-  if (scanId) await followScan(tree, scanId);
+  if (scanId) await followScan(tree, scanId, session.accessToken);
 }
 
 /**
  * Polls the scan until it completes or fails, then loads findings.
  * Stops quietly if the API does not provide scan status yet, or if a newer scan replaced this one.
  */
-async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<void> {
+async function followScan(tree: FindingsTreeProvider, scanId: string, accessToken: string): Promise<void> {
   const isCurrent = () => {
     const s = tree.lastScan;
     return s.kind === 'in-progress' && s.scanId === scanId;
@@ -88,7 +95,7 @@ async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<v
   while (Date.now() < deadline && isCurrent()) {
     let scan;
     try {
-      scan = await getScan(scanId);
+      scan = await getScan(scanId, accessToken);
     } catch {
       return; // transient error: keep the "accepted" state; the dashboard can still show the scan
     }
@@ -101,7 +108,7 @@ async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<v
     if (scan.status === 'complete') {
       let findings: Finding[] | undefined;
       try {
-        findings = await getFindings(scanId);
+        findings = await getFindings(scanId, accessToken);
       } catch {
         findings = undefined;
       }

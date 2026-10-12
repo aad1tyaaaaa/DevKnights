@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from pathlib import Path
+import sqlite3
 
 import httpx
 import pytest
@@ -12,6 +13,30 @@ from app.main import app
 from app.models.database import ScanRepository
 from app.parsers.npm_registry import NpmRegistryClient
 from app.services import ScanService
+
+
+def test_existing_scan_database_adds_owner_column(tmp_path: Path) -> None:
+    database_path = tmp_path / "legacy.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """CREATE TABLE scans (
+                scan_id VARCHAR(36) PRIMARY KEY,
+                status VARCHAR(16) NOT NULL,
+                created_at DATETIME NOT NULL,
+                project_name VARCHAR(214),
+                lockfile JSON NOT NULL,
+                summary JSON,
+                graph JSON,
+                warnings JSON NOT NULL,
+                error TEXT
+            )"""
+        )
+
+    ScanRepository(f"sqlite:///{database_path}")
+
+    with sqlite3.connect(database_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(scans)")}
+    assert "owner_id" in columns
 
 
 @pytest.fixture

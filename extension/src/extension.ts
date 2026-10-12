@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { scanDependencies } from './commands/scanDependencies';
 import { FindingsTreeProvider } from './providers/findingsTreeProvider';
 import { checkHealth } from './services/apiClient';
+import { githubSession, requireGitHubSession } from './services/githubAuth';
 import { createLockfileWatcher } from './services/lockfileWatcher';
 import { openDashboard } from './utils/dashboard';
 import { showApiError } from './utils/errors';
@@ -39,6 +40,7 @@ export function activate(context: vscode.ExtensionContext) {
       openDashboard(typeof path === 'string' && path.startsWith('/') ? path : ''),
     ),
     vscode.commands.registerCommand('provenyx.checkBackend', () => checkBackend(true)),
+    vscode.commands.registerCommand('provenyx.signIn', () => requireGitHubSession()),
     createLockfileWatcher((uri) => void scanDependencies(tree, uri)),
     vscode.workspace.onDidChangeWorkspaceFolders((event) => {
       tree.refresh();
@@ -51,6 +53,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Local health probe only; no project data is sent.
   void checkBackend(false);
+
+  // VS Code owns and securely stores the GitHub session; Provenyx never persists it locally.
+  void Promise.resolve(githubSession(true)).catch(() => undefined);
 
   // File watchers only observe future writes, so scan the lockfile already present when a project opens.
   void scanExistingLockfiles();

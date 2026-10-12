@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, create_engine, delete, select
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, create_engine, delete, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 
@@ -15,6 +15,7 @@ class ScanRow(Base):
     __tablename__ = "scans"
 
     scan_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(64), index=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     project_name: Mapped[str | None] = mapped_column(String(214))
@@ -50,12 +51,20 @@ class ScanRepository:
         self._engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
         self._sessions = sessionmaker(self._engine, expire_on_commit=False)
         Base.metadata.create_all(self._engine)
+        if "owner_id" not in {column["name"] for column in inspect(self._engine).get_columns("scans")}:
+            with self._engine.begin() as connection:
+                connection.execute(text("ALTER TABLE scans ADD COLUMN owner_id VARCHAR(64)"))
+        for index in ScanRow.__table__.indexes:
+            index.create(self._engine, checkfirst=True)
 
-    def create(self, scan_id: str, project_name: str | None, lockfile: dict[str, Any]) -> None:
+    def create(
+        self, scan_id: str, project_name: str | None, lockfile: dict[str, Any], owner_id: str | None = None
+    ) -> None:
         with self._sessions.begin() as session:
             session.add(
                 ScanRow(
                     scan_id=scan_id,
+                    owner_id=owner_id,
                     status="accepted",
                     created_at=datetime.now(timezone.utc),
                     project_name=project_name,
@@ -100,6 +109,12 @@ class ScanRepository:
         with self._sessions() as session:
             return session.scalar(select(ScanRow).where(ScanRow.scan_id == scan_id))
 
+    def get_owned(self, scan_id: str, owner_id: str) -> ScanRow | None:
+        with self._sessions() as session:
+            return session.scalar(
+                select(ScanRow).where(ScanRow.scan_id == scan_id, ScanRow.owner_id == owner_id)
+            )
+
     def get_findings(self, scan_id: str) -> list[dict[str, Any]]:
         with self._sessions() as session:
             rows = session.scalars(
@@ -122,11 +137,12 @@ class ScanRepository:
                 ),
             )
 
-    def list_recent(self, limit: int = 50, offset: int = 0) -> list[ScanRow]:
+    def list_recent(self, owner_id: str, limit: int = 50, offset: int = 0) -> list[ScanRow]:
         with self._sessions() as session:
             return list(
                 session.scalars(
                     select(ScanRow)
+                    .where(ScanRow.owner_id == owner_id)
                     .order_by(ScanRow.created_at.desc())
                     .limit(max(1, min(limit, 200)))
                     .offset(max(0, offset))
@@ -144,7 +160,9 @@ class ScanRepository:
                 )
             )
 
-    def find_latest_complete(self, project_name: str, *, before: datetime, exclude_scan_id: str) -> ScanRow | None:
+    def find_latest_complete(
+        self, project_name: str, *, owner_id: str | None, before: datetime, exclude_scan_id: str
+    ) -> ScanRow | None:
         """The most recent completed scan of the project created strictly before `before`.
 
         Requiring an earlier scan keeps comparisons pointing forward in time even when scans finish out of order.
@@ -154,6 +172,7 @@ class ScanRepository:
                 select(ScanRow)
                 .where(
                     ScanRow.project_name == project_name,
+                    ScanRow.owner_id == owner_id,
                     ScanRow.status == "complete",
                     ScanRow.scan_id != exclude_scan_id,
                     ScanRow.created_at < before,

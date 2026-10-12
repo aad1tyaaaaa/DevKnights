@@ -22,7 +22,9 @@ export class ApiError extends Error {
 }
 
 export function apiBaseUrl(): string {
-  const raw = vscode.workspace.getConfiguration('provenyx').get<string>('apiBaseUrl', 'http://localhost:8000');
+  const raw = vscode.workspace
+    .getConfiguration('provenyx')
+    .get<string>('apiBaseUrl', 'https://devknights.onrender.com');
   return raw.replace(/\/+$/, '');
 }
 
@@ -72,18 +74,46 @@ export function checkHealth(): Promise<HealthResponse> {
   return request<HealthResponse>('/health', { method: 'GET' }, HEALTH_TIMEOUT_MS);
 }
 
-export function submitScan(body: ScanRequest): Promise<ScanAccepted> {
+export function createGitHubBrowserHandoff(accessToken: string, path: string): Promise<{ url: string }> {
+  return request<{ url: string }>(
+    '/api/github/auth/extension',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ next: path }),
+    },
+    READ_TIMEOUT_MS,
+  );
+}
+
+export function submitScan(body: ScanRequest, accessToken: string): Promise<ScanAccepted> {
   return request<ScanAccepted>(
     '/api/scans',
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
     SCAN_TIMEOUT_MS,
   );
 }
 
-export function getScan(scanId: string): Promise<Scan | undefined> {
-  return optional(request<Scan>(`/api/scans/${encodeURIComponent(scanId)}`, { method: 'GET' }, READ_TIMEOUT_MS));
+export function getScan(scanId: string, accessToken: string): Promise<Scan | undefined> {
+  return optional(
+    request<Scan>(
+      `/api/scans/${encodeURIComponent(scanId)}`,
+      { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
+      READ_TIMEOUT_MS,
+    ),
+  );
 }
 
-export function getFindings(scanId: string): Promise<Finding[] | undefined> {
-  return optional(request<Finding[]>(`/api/scans/${encodeURIComponent(scanId)}/findings`, { method: 'GET' }, READ_TIMEOUT_MS));
+export function getFindings(scanId: string, accessToken: string): Promise<Finding[] | undefined> {
+  return optional(
+    request<Finding[]>(
+      `/api/scans/${encodeURIComponent(scanId)}/findings`,
+      { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } },
+      READ_TIMEOUT_MS,
+    ),
+  );
 }

@@ -1,8 +1,8 @@
 """Access control for deployments beyond a trusted local machine.
 
-Scans are not yet owned by users, so this is a single shared access key, not per-user isolation:
-it keeps an exposed backend from being read or used by anyone who finds it. Run without a key only
-on a trusted machine or network.
+The shared API key limits access to the deployment. GitHub-authenticated scan routes additionally
+scope records to a pseudonymous per-user owner ID. Run without a key only on a trusted machine or
+network.
 """
 
 from __future__ import annotations
@@ -18,7 +18,12 @@ from app.core.config import settings
 
 API_KEY_HEADER = "X-Provenyx-Key"
 # Browsers navigate to these directly (no custom headers); they are protected by the OAuth state cookie.
-KEY_EXEMPT_PATHS = {"/health", "/api/github/auth/login", "/api/github/auth/callback"}
+KEY_EXEMPT_PATHS = {
+    "/health",
+    "/api/github/auth/login",
+    "/api/github/auth/callback",
+    "/api/github/auth/extension/callback",
+}
 
 
 def api_key_rejection(request: Request) -> JSONResponse | None:

@@ -2,7 +2,7 @@
   "name": "provenyx-security",
   "displayName": "Provenyx Security",
   "description": "Software dependency trust and supply-chain security analysis",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "OmkarPramodBandikatte",
   "license": "MIT",
   "private": true,
@@ -52,6 +52,11 @@
         "title": "Check Backend Connection",
         "category": "Provenyx",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "provenyx.signIn",
+        "title": "Sign In with GitHub",
+        "category": "Provenyx"
       }
     ],
     "viewsContainers": {
@@ -95,9 +100,9 @@
       "properties": {
         "provenyx.apiBaseUrl": {
           "type": "string",
-          "default": "http://localhost:8000",
+          "default": "https://devknights.onrender.com",
           "format": "uri",
-          "markdownDescription": "Base URL of the Provenyx API. Lockfiles are only sent here after you confirm each scan. Defaults to the local development backend."
+          "markdownDescription": "Base URL of the Provenyx API. Lockfiles are only sent here after you confirm each scan."
         },
         "provenyx.apiKey": {
           "type": "string",
@@ -107,9 +112,9 @@
         },
         "provenyx.dashboardUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
+          "default": "https://provenyx.vercel.app",
           "format": "uri",
-          "markdownDescription": "URL opened by **Provenyx: Open Dashboard**. Defaults to the local web dashboard."
+          "markdownDescription": "URL opened by **Provenyx: Open Dashboard**."
         },
         "provenyx.autoScanEnabled": {
           "type": "boolean",
