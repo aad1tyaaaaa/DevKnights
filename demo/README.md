@@ -16,3 +16,20 @@ Expected result: the scan completes with one package, `ms@2.1.3`, plus its npm r
 
 - `fixtures/`: **synthetic** baseline and suspicious-update lockfiles. Scan the baseline first, then the update, to produce reproducible findings (see `fixtures/README.md`).
 - `anchors.demo.json`: release-registry entries for the demo. `ms@2.1.3` has its real canonical manifest hash and verifies as **match**. `ms@2.1.2` has a **deliberately altered** hash (built from the fake integrity `sha512-ALTERED-for-demo`) and verifies as **mismatch**. Copy it to `contracts/anchors.json` and run `npm --prefix contracts run anchor:local`.
+
+## Phase 3 offline judge demo
+
+The Phase 3 CLI exercises five synthetic before/after scenarios through the real scanner,
+persistence, comparison, impact analysis, remediation, and trust gate. It uses in-memory SQLite,
+mocked metadata/advisories, and a harmless in-memory archive; it makes no network requests.
+
+From Windows PowerShell:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m phase3_demo --scenario transitive-dependency-compromise --format markdown
+.\.venv\Scripts\python.exe -m phase3_demo --scenario all --format json
+```
+
+Do not install any demo dependency. The CLI only parses synthetic lockfile dictionaries and
+statically reads fixture text.
