@@ -12,9 +12,10 @@ export function isProjectLockfile(uri: vscode.Uri): boolean {
   return uri.path.endsWith('/package-lock.json') && !uri.path.includes('/node_modules/');
 }
 
-/** Finds package-lock.json files in the workspace, ignoring node_modules. */
-export async function findLockfiles(): Promise<vscode.Uri[]> {
-  const found = await vscode.workspace.findFiles('**/package-lock.json', '**/node_modules/**', 50);
+/** Finds package-lock.json files in the workspace or a specific folder, ignoring node_modules. */
+export async function findLockfiles(folder?: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
+  const include = folder ? new vscode.RelativePattern(folder, '**/package-lock.json') : '**/package-lock.json';
+  const found = await vscode.workspace.findFiles(include, '**/node_modules/**', 50);
   return found.sort((a, b) => a.path.length - b.path.length);
 }
 

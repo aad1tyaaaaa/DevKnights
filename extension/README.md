@@ -44,7 +44,7 @@ Scan history in the web dashboard:
 | --- | --- | --- |
 | `provenyx.apiBaseUrl` | `http://localhost:8000` | Provenyx API base URL. Lockfiles are only sent here after confirmation. |
 | `provenyx.dashboardUrl` | `http://localhost:3000` | URL opened by **Open Dashboard** and by clicking findings. |
-| `provenyx.autoScanEnabled` | `true` | Start the consent-gated scan flow when `package-lock.json` is created or changes. |
+| `provenyx.autoScanEnabled` | `true` | Start the consent-gated scan flow when a project opens or `package-lock.json` is created or changes. |
 
 ## Requirements
 
