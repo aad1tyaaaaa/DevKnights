@@ -9,7 +9,9 @@ import { ROOT_ID, type DependencyGraphData, type Severity } from '@/lib/types'
 // a dedicated "explore neighbours" mode can come later if users need the full graph.
 const MAX_FULL_GRAPH = 400
 
-const SEVERITY_COLOR: Record<Severity, string> = { high: '#b74232', medium: '#d08a10', low: '#3b6390', info: '#7a8c82' }
+// Matches the severity badges; info is a distinct slate so a flagged node never looks like an ordinary package.
+const SEVERITY_COLOR: Record<Severity, string> = { high: '#b74232', medium: '#d08a10', low: '#3b6390', info: '#55627a' }
+const SEVERITIES: Severity[] = ['high', 'medium', 'low', 'info']
 
 interface Props {
   graph: DependencyGraphData
@@ -86,7 +88,8 @@ export function DependencyGraph({ graph, rootLabel, flagged, keep, selectedNode,
           },
           { selector: 'node[kind = "root"]', style: { 'background-color': '#173d30', 'border-color': '#0f2a20', width: 26, height: 26, 'font-weight': 'bold' } },
           { selector: 'node[kind = "direct"]', style: { 'background-color': '#5e9e6f', 'border-color': '#3f7a51' } },
-          { selector: 'node[kind = "flagged"]', style: { 'background-color': 'data(color)', 'border-color': 'data(color)', width: 22, height: 22 } },
+          // Flagged packages are diamonds, so the state is visible without relying on colour alone.
+          { selector: 'node[kind = "flagged"]', style: { shape: 'diamond', 'background-color': 'data(color)', 'border-color': '#ffffff', 'border-width': 2, width: 26, height: 26, 'font-weight': 'bold', color: 'data(color)' } },
           { selector: 'edge', style: { width: 1.2, 'line-color': '#c6d9cc', 'target-arrow-color': '#c6d9cc', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier' } },
           { selector: 'edge[type = "dev"]', style: { 'line-style': 'dashed' } },
           { selector: '.faded', style: { opacity: 0.15 } },
@@ -155,7 +158,15 @@ export function DependencyGraph({ graph, rootLabel, flagged, keep, selectedNode,
         <Legend color="#173d30" label="Project" />
         <Legend color="#5e9e6f" label="Direct" />
         <Legend color="#e1efe5" border="#a9c9b3" label="Transitive" />
-        <Legend color={SEVERITY_COLOR.high} label="Flagged (colour = severity)" />
+        <span className="flex items-center gap-1.5">
+          <span className="text-[13px] leading-none" aria-hidden>◆</span> Flagged:
+          {SEVERITIES.map((sev) => (
+            <span key={sev} className="flex items-center gap-1 capitalize">
+              <span className="size-2.5 rotate-45" style={{ backgroundColor: SEVERITY_COLOR[sev] }} aria-hidden />
+              {sev}
+            </span>
+          ))}
+        </span>
         <span>Dashed edge = dev dependency · Scroll to zoom, drag to pan, click a package to trace its paths</span>
       </div>
       {view.shown < view.total && (
