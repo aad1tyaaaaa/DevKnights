@@ -10,6 +10,8 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "compile:contracts": "npm --prefix contracts run compile",
-    "test:contracts": "npm --prefix contracts test"
+    "test:contracts": "npm --prefix contracts test",
+    "dev:backend": "node scripts/dev-backend.mjs",
+    "dev:chain": "npm --prefix contracts run node"
   }
 }

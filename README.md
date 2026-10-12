@@ -224,16 +224,15 @@ pip install -r requirements.txt
 
 ### Run
 
+From the repository root:
+
 ```bash
-# terminal 1: API on http://localhost:8000
-cd backend && uvicorn app.main:app --reload --port 8000
-
-# terminal 2: dashboard on http://localhost:3000
-npm run dev:frontend
-
-# terminal 3 (optional, for release verification): local chain on :8545
-npm --prefix contracts run node
+npm run dev:backend      # terminal 1: API on http://localhost:8000 (required by the extension)
+npm run dev:frontend     # terminal 2: dashboard on http://localhost:3000
+npm run dev:chain        # terminal 3 (optional, for release verification): local chain on :8545
 ```
+
+If the extension's sidebar shows **Backend: Unreachable**, the API isn't running. Start it with `npm run dev:backend`, then click the Backend item to retry.
 
 ### Launch the extension
 

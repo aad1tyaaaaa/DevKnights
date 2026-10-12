@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import type { BackendState, Finding, LastScan, Severity } from '../types';
+import { apiBaseUrl } from '../services/apiClient';
 import { scanPath } from '../utils/dashboard';
+import { START_BACKEND_COMMAND } from '../utils/errors';
 import { projectName } from '../utils/workspace';
 
 const SEVERITY_ORDER: Severity[] = ['high', 'medium', 'low', 'info'];
@@ -46,8 +48,14 @@ export class FindingsTreeProvider implements vscode.TreeDataProvider<Node> {
     const backend = {
       unknown: item('Backend', 'Not checked', 'circle-outline'),
       connected: item('Backend', 'Connected', 'pass'),
-      unreachable: item('Backend', 'Unreachable', 'error'),
+      unreachable: item('Backend', 'Unreachable — click to retry', 'error'),
     }[this.backend];
+    backend.tooltip =
+      this.backend === 'unreachable'
+        ? `Cannot reach the Provenyx API at ${apiBaseUrl()}.
+Start it from the Provenyx repository: ${START_BACKEND_COMMAND}
+or change the provenyx.apiBaseUrl setting.`
+        : `Provenyx API: ${apiBaseUrl()}`;
     backend.command = { command: 'provenyx.checkBackend', title: 'Check Backend Connection' };
 
     return [project, backend, this.scanItem(), ...this.findingItems()];

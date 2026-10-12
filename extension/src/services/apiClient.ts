@@ -9,6 +9,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    /** True when the API could not be reached at all (not running, wrong URL, or timed out). */
+    readonly unreachable = false,
   ) {
     super(message);
   }
@@ -35,6 +37,8 @@ async function request<T>(path: string, init: RequestInit, timeoutMs: number): P
       timedOut
         ? `The Provenyx API at ${base} did not respond in time.`
         : `Cannot reach the Provenyx API at ${base}. Is the backend running?`,
+      undefined,
+      true,
     );
   }
   if (!res.ok) {

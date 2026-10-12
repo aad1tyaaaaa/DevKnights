@@ -124,8 +124,17 @@ async function runChecks() {
 
     // 3. Backend offline: no crash, clear state.
     await useApi('http://127.0.0.1:9');
+    const errors = [];
+    const originalError = vscode.window.showErrorMessage;
+    vscode.window.showErrorMessage = (message, ...items) => (errors.push({ message, items }), Promise.resolve(undefined));
     await vscode.commands.executeCommand('provenyx.checkBackend');
+    await new Promise((r) => setTimeout(r, 100));
+    vscode.window.showErrorMessage = originalError;
     assert.strictEqual(tree.backend, 'unreachable');
+    assert.ok(errors.length === 1 && /npm run dev:backend/.test(errors[0].message), JSON.stringify(errors));
+    assert.deepStrictEqual(errors[0].items, ['Retry', 'Copy Start Command', 'Open Settings']);
+    const backendItem = tree.getChildren().find((i) => i.label === 'Backend');
+    assert.match(backendItem.tooltip, /npm run dev:backend/);
     await vscode.commands.executeCommand('provenyx.scanDependencies');
     assert.strictEqual(tree.lastScan.kind, 'failed');
     assert.match(tree.lastScan.message, /Cannot reach the Provenyx API/);

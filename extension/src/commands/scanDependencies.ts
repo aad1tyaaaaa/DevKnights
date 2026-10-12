@@ -3,6 +3,7 @@ import type { FindingsTreeProvider } from '../providers/findingsTreeProvider';
 import type { Finding } from '../types';
 import { ApiError, apiBaseUrl, checkHealth, getFindings, getScan, submitScan } from '../services/apiClient';
 import { openDashboard, scanPath } from '../utils/dashboard';
+import { showApiError } from '../utils/errors';
 import { findLockfiles, projectName, readLockfile } from '../utils/workspace';
 
 const CLIENT = 'vscode-extension/0.1.0';
@@ -135,5 +136,5 @@ async function pickLockfile(): Promise<vscode.Uri | undefined> {
 function fail(tree: FindingsTreeProvider, err: unknown, scanId?: string): void {
   const message = err instanceof ApiError ? err.message : 'Unexpected error while contacting the Provenyx API.';
   tree.setLastScan({ kind: 'failed', scanId, message, at: new Date() });
-  void vscode.window.showErrorMessage(`Provenyx: ${message}`);
+  void showApiError(err);
 }

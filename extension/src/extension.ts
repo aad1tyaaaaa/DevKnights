@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { scanDependencies } from './commands/scanDependencies';
 import { FindingsTreeProvider } from './providers/findingsTreeProvider';
-import { ApiError, checkHealth } from './services/apiClient';
+import { checkHealth } from './services/apiClient';
 import { createLockfileWatcher } from './services/lockfileWatcher';
 import { openDashboard } from './utils/dashboard';
+import { showApiError } from './utils/errors';
 
 export function activate(context: vscode.ExtensionContext) {
   const tree = new FindingsTreeProvider();
@@ -15,7 +16,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (notify) void vscode.window.showInformationMessage(`Provenyx: Connected to ${health.service} ${health.version}.`);
     } catch (err) {
       tree.setBackend('unreachable');
-      if (notify) void vscode.window.showErrorMessage(`Provenyx: ${err instanceof ApiError ? err.message : 'Backend check failed.'}`);
+      if (notify) void showApiError(err);
     }
   };
 
