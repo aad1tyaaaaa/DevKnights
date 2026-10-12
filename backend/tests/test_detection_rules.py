@@ -1,0 +1,117 @@
+from datetime import datetime, timezone
+
+from app.detection.rules import detect_graph_changes, detect_unusual_release_timing
+from app.models.schemas import GraphEdge, GraphNode, RegistryMetadataResponse, ScanGraph
+
+
+OBSERVED_AT = datetime(2026, 10, 12, tzinfo=timezone.utc)
+UNKNOWN = RegistryMetadataResponse(status="unavailable", error="not fetched")
+
+
+def node(name: str, version: str, *, direct: bool = False) -> GraphNode:
+    return GraphNode(
+        id=f"{name}@{version}",
+        name=name,
+        version=version,
+        direct=direct,
+        lockfile_paths=[f"node_modules/{name}"],
+        registry=UNKNOWN,
+    )
+
+
+def graph(scan_id: str, nodes: list[GraphNode], edges: list[GraphEdge] | None = None) -> ScanGraph:
+    return ScanGraph(scan_id=scan_id, status="complete", nodes=nodes, edges=edges or [])
+
+
+def test_new_transitive_dependency_has_evidence_and_blast_radius_path():
+    baseline = graph("baseline", [node("app-dep", "1.0.0", direct=True)])
+    current = graph(
+        "current",
+        [node("app-dep", "1.0.0", direct=True), node("new-child", "2.0.0")],
+        [GraphEdge(source="app-dep@1.0.0", target="new-child@2.0.0", type="prod")],
+    )
+
+    findings = detect_graph_changes(baseline, current, observed_at=OBSERVED_AT)
+    new_dependency = next(finding for finding in findings if finding.rule_id == "new-dependency")
+
+    assert new_dependency.severity == "info"
+    assert new_dependency.confidence == "high"
+    assert new_dependency.evidence[0].value["baseline_scan_id"] == "baseline"
+    assert new_dependency.paths == [["root", "app-dep@1.0.0", "new-child@2.0.0"]]
+
+
+def test_added_edges_are_grouped_into_one_scored_expansion_finding():
+    baseline = graph("baseline", [node("parent", "1.0.0", direct=True)])
+    current = graph(
+        "current",
+        [node("parent", "1.0.0", direct=True), node("a", "1.0.0"), node("b", "1.0.0")],
+        [
+            GraphEdge(source="parent@1.0.0", target="a@1.0.0", type="prod"),
+            GraphEdge(source="parent@1.0.0", target="b@1.0.0", type="optional"),
+        ],
+    )
+
+    findings = detect_graph_changes(baseline, current, observed_at=OBSERVED_AT)
+    expansion = next(finding for finding in findings if finding.rule_id == "dependency-expansion")
+
+    assert expansion.package == "parent"
+    assert expansion.priority_score == 45
+    assert len(expansion.evidence[0].value["edges"]) == 2
+    assert expansion.paths == [["root", "parent@1.0.0"]]
+
+
+def test_normal_version_only_upgrade_does_not_create_a_risk_finding():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True)])
+    current = graph("current", [node("pkg", "2.0.0", direct=True)])
+
+    assert detect_graph_changes(baseline, current, observed_at=OBSERVED_AT) == []
+
+
+def test_finding_ids_and_order_are_deterministic():
+    baseline = graph("baseline", [])
+    current = graph("current", [node("z-package", "1.0.0"), node("a-package", "1.0.0", direct=True)])
+
+    first = detect_graph_changes(baseline, current, observed_at=OBSERVED_AT)
+    second = detect_graph_changes(baseline, current, observed_at=OBSERVED_AT)
+
+    assert [finding.id for finding in first] == [finding.id for finding in second]
+    assert [finding.package for finding in first] == ["a-package", "z-package"]
+
+
+def test_unusual_release_timing_uses_registry_history_for_changed_versions():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True)])
+    current = graph("current", [node("pkg", "2.0.0", direct=True)])
+
+    findings = detect_unusual_release_timing(
+        baseline,
+        current,
+        release_times={
+            "pkg": {
+                "1.0.0": "2026-10-12T10:00:00.000Z",
+                "2.0.0": "2026-10-12T10:15:00.000Z",
+            }
+        },
+        observed_at=OBSERVED_AT,
+    )
+
+    assert len(findings) == 1
+    assert findings[0].rule_id == "unusual-release-timing"
+    assert findings[0].confidence == "medium"
+    assert findings[0].evidence[0].value["interval_seconds"] == 900
+
+
+def test_release_timing_does_not_guess_when_history_is_missing_or_normal():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True)])
+    current = graph("current", [node("pkg", "2.0.0", direct=True)])
+
+    assert detect_unusual_release_timing(
+        baseline, current, release_times={"pkg": None}, observed_at=OBSERVED_AT
+    ) == []
+    assert detect_unusual_release_timing(
+        baseline,
+        current,
+        release_times={
+            "pkg": {"1.0.0": "2026-10-10T10:00:00Z", "2.0.0": "2026-10-12T10:00:00Z"}
+        },
+        observed_at=OBSERVED_AT,
+    ) == []

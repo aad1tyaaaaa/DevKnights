@@ -16,7 +16,7 @@ Sends and returns no project data. The extension calls it on activation and befo
 
 ## `POST /api/scans`
 
-Submit an npm lockfile. **Phase 1 validates and acknowledges only — no analysis is performed and nothing is stored.**
+Submit an npm lockfile. The API validates it, stores a local snapshot, and starts dependency analysis in a background task.
 
 Request headers: `Content-Type: application/json` (otherwise `415`).
 
@@ -47,7 +47,7 @@ No other top-level fields are accepted.
 {
   "scan_id": "3f1c9a52-6a77-4a8e-9d4e-1c0b2f6f9e10",
   "status": "accepted",
-  "message": "Lockfile received. Dependency analysis is not implemented in Phase 1."
+  "message": "Lockfile received. Dependency analysis has started."
 }
 ```
 
@@ -63,33 +63,52 @@ No other top-level fields are accepted.
 
 Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`), methods `GET`/`POST`, header `Content-Type`. The extension runs in Node and is not subject to CORS.
 
-## Planned endpoints (not implemented — draft shapes for Phase 2+)
+## Scan results
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /api/scans` | Recent persisted scans, newest first |
 | `GET /api/scans/{scan_id}` | Status and summary |
 | `GET /api/scans/{scan_id}/findings` | Evidence-backed findings |
 | `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges |
-| `POST /api/releases/verify` | Compare release metadata with the on-chain manifest hash |
+| `GET /api/scans/{scan_id}/compare/{baseline_scan_id}` | Additions, removals, upgrades, and new edges |
+| `POST /api/releases/verify` | Compare release metadata with the on-chain manifest hash (Phase 6, not implemented) |
 
-Draft schemas (subject to change until implemented):
+Implemented scan schemas:
 
 ```jsonc
-// Scan
+// GET /api/scans/{scan_id}
 { "scan_id": "uuid", "status": "accepted | analyzing | complete | failed",
   "created_at": "ISO-8601", "project_name": "string|null",
-  "summary": { "packages": 0, "direct": 0, "transitive": 0, "findings": 0 } }
+  "summary": { "packages": 0, "direct": 0, "transitive": 0, "findings": 0 },
+  "warnings": [], "error": null }
 
 // Finding — every finding must carry evidence; no evidence, no finding
 { "id": "uuid", "rule_id": "string", "package": "name", "version": "x.y.z",
-  "severity": "info | low | medium | high",
+  "severity": "info | low | medium | high", "confidence": "low | medium | high",
+  "priority_score": 0,
   "title": "string", "explanation": "string",
   "evidence": [ { "source": "npm-registry | lockfile | registry-contract", "field": "string", "value": "any", "observed_at": "ISO-8601" } ],
   "paths": [ ["root", "dep-a", "package"] ] }
 
-// Graph — node id is "name@version" so multiple installed versions stay distinct
-{ "nodes": [ { "id": "name@version", "name": "string", "version": "string", "direct": true, "lockfile_paths": ["node_modules/..."] } ],
-  "edges": [ { "from": "name@version", "to": "name@version", "type": "prod | dev | optional | peer" } ] }
+// GET /api/scans/{scan_id}/graph
+// Node id is "name@version" so multiple installed versions stay distinct.
+{ "scan_id": "uuid", "status": "complete",
+  "nodes": [ { "id": "name@version", "name": "string", "version": "string",
+    "direct": true, "lockfile_paths": ["node_modules/..."],
+    "resolved_urls": ["https://registry.npmjs.org/..."],
+    "lockfile_integrities": ["sha512-..."],
+    "registry": { "status": "available | unavailable", "description": "string|null",
+      "license": "string|null", "deprecated": "string|null", "published_at": "ISO-8601|null",
+      "dist_integrity": "sha512-...|null", "error": "string|null" } } ],
+  "edges": [ { "from": "name@version", "to": "name@version", "type": "prod | dev | optional | peer" } ],
+  "warnings": [] }
+
+// GET /api/scans/{scan_id}/compare/{baseline_scan_id}
+{ "baseline_scan_id": "uuid", "current_scan_id": "uuid",
+  "added_packages": ["name@version"], "removed_packages": ["name@version"],
+  "version_changes": [ { "name": "name", "from_versions": ["1.0.0"], "to_versions": ["2.0.0"] } ],
+  "added_edges": [ { "from": "parent@version", "to": "child@version", "type": "prod" } ] }
 
 // Release verification result
 { "release_id": "0x…", "status": "match | mismatch | no_record | unavailable", "manifest_hash": "0x…" }

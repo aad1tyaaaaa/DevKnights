@@ -26,8 +26,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('provenyx.showFindings', () =>
       vscode.commands.executeCommand('provenyx.findings.focus'),
     ),
-    vscode.commands.registerCommand('provenyx.openDashboard', async () => {
-      const url = vscode.workspace.getConfiguration('provenyx').get<string>('dashboardUrl', 'http://localhost:3000');
+    vscode.commands.registerCommand('provenyx.openDashboard', async (scanId?: unknown) => {
+      const configured = vscode.workspace.getConfiguration('provenyx').get<string>('dashboardUrl', 'http://localhost:3000');
+      const url = typeof scanId === 'string'
+        ? `${configured.replace(/\/+$/, '')}/scans/${encodeURIComponent(scanId)}`
+        : configured;
       let uri: vscode.Uri;
       try {
         uri = vscode.Uri.parse(url, true);

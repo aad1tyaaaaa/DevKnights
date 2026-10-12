@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-| Tool | Version used to verify Phase 1 |
+| Tool | Version used to verify the project |
 | --- | --- |
 | Node.js | 24.18 (Hardhat 3 needs ≥ 22.10; extension/frontend need ≥ 20) |
 | npm | 12.0 |
@@ -77,13 +77,20 @@ In VS Code: **Provenyx: Check Backend Connection**, or look at *Backend* in the 
 
 ## 6. Scan the sample lockfile
 
-In the Extension Development Host (opened on `demo/sample-project`): **Provenyx: Scan Dependencies** → confirm **Send to Provenyx API**. Expect: “Lockfile received. Dependency analysis is not implemented in Phase 1.” and *Last scan: Accepted* in the sidebar.
+In the Extension Development Host (opened on `demo/sample-project`): **Provenyx: Scan Dependencies** → confirm **Send to Provenyx API**. Expect: “Lockfile received. Dependency analysis has started.” and *Last scan: Accepted* in the sidebar.
 
 Without VS Code (Git Bash / macOS / Linux):
 
 ```bash
 curl -X POST http://localhost:8000/api/scans -H "Content-Type: application/json" \
   -d "{\"lockfile\": $(cat demo/sample-project/package-lock.json)}"
+```
+
+Use the returned `scan_id` to inspect the completed snapshot and graph:
+
+```bash
+curl http://localhost:8000/api/scans/<scan_id>
+curl http://localhost:8000/api/scans/<scan_id>/graph
 ```
 
 PowerShell:

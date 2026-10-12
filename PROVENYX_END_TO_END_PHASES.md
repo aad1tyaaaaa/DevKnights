@@ -19,11 +19,11 @@
 |---|---|---:|---|---|---|---|
 | 1 | Foundation | 2 h | Aaditya + Omkar | — | ✅ Done | Running project scaffolds and API contract |
 | 2 | VS Code extension | 3 h | **Aaditya** | Omkar (API) | 🟡 Mostly done | Scan command, sidebar, API connection |
-| 3 | Real npm scanner | 4 h | **Omkar** | — | ⬜ Not started | Lockfile parser, registry lookup, graph |
-| 4 | Risk engine | 4 h | **Omkar** | Aaditya (fixtures review) | ⬜ Not started | Explainable findings and blast radius |
-| 5 | Web dashboard | 3 h | **Aaditya** | — | 🟡 Scaffolded | Investigation UI with real data |
+| 3 | Real npm scanner | 4 h | **Omkar** | — | ✅ Done | Lockfile parser, registry lookup, graph |
+| 4 | Risk engine | 4 h | **Omkar** | Aaditya (fixtures review) | ✅ Done | Explainable findings and blast radius |
+| 5 | Web dashboard | 3 h | **Aaditya** | — | 🟡 Investigation views working | Investigation UI with real data |
 | 6 | Blockchain verification | 3 h | **Omkar** (manifest + backend) | **Aaditya** (contract + UI) | 🟡 Contract scaffolded | Anchored manifest verification |
-| 7 | Integration and testing | 3 h | Aaditya + Omkar | — | ⬜ Not started | Reliable end-to-end workflow |
+| 7 | Integration and testing | 3 h | Aaditya + Omkar | — | 🟡 Mostly done | Core scan workflow tested; Phase 6 cases remain |
 | 8 | Marketplace and demo | 2 h | **Aaditya** | Omkar (backend demo setup) | 🟡 VSIX packages | Tested VSIX and publication submission |
 
 These are effort budgets. Run independent tasks in parallel. Publication processing is not included.
@@ -83,10 +83,10 @@ provenyx/
 | Endpoint | Purpose | Status | Owner |
 |---|---|---|---|
 | `GET /health` | Connectivity | ✅ Implemented | — |
-| `POST /api/scans` | Accept validated lockfile, return scan ID | ✅ Validates only; no analysis yet | — |
-| `GET /api/scans/{id}` | Status and summary | ⬜ Draft schema | Omkar (Phase 3) |
-| `GET /api/scans/{id}/findings` | Evidence-backed findings | ⬜ Draft schema | Omkar (Phase 4) |
-| `GET /api/scans/{id}/graph` | Nodes and edges | ⬜ Draft schema | Omkar (Phase 3) |
+| `POST /api/scans` | Accept validated lockfile, return scan ID | ✅ Implemented with background analysis | — |
+| `GET /api/scans/{id}` | Status and summary | ✅ Implemented | Omkar (Phase 3) |
+| `GET /api/scans/{id}/findings` | Evidence-backed findings | ✅ Implemented | Omkar (Phase 4) |
+| `GET /api/scans/{id}/graph` | Nodes and edges | ✅ Implemented | Omkar (Phase 3) |
 | `POST /api/releases/verify` | Trusted manifest verification | ⬜ Draft schema | Omkar (Phase 6) |
 
 ### Done when
@@ -108,8 +108,8 @@ Let developers scan dependencies without leaving VS Code.
 ### Remaining work (Aaditya)
 - [ ] Manual F5 test: click **Send to Provenyx API** in the consent dialog and confirm *Last scan: Accepted* in the sidebar.
 - [ ] Manual test with the backend stopped: sidebar shows *Unreachable*, no crash.
-- [ ] Once Omkar's Phase 4 findings endpoint exists, list real findings in the sidebar.
-- [ ] Open the dashboard on the matching scan (`/scans/{id}`) after a scan.
+- [x] List real Phase 4 findings in the sidebar after analysis completes.
+- [x] Open the dashboard on the matching scan (`/scans/{id}`) after a scan.
 
 ### Features
 - Provenyx Activity Bar icon and TreeView sidebar.
@@ -133,7 +133,7 @@ Let developers scan dependencies without leaving VS Code.
 
 ## Phase 3 — Real npm dependency scanner (4 hours)
 
-**Owner:** Omkar · **Status:** ⬜ Not started · **Where:** `backend/app/parsers/`, `backend/app/graph/`
+**Owner:** Omkar · **Status:** ✅ Done (2026-10-12) · **Where:** `backend/app/parsers/`, `backend/app/graph/`
 
 **Hands off to Aaditya:** `GET /api/scans/{id}` and `GET /api/scans/{id}/graph`, matching the draft schemas in `docs/api-contract.md`.
 
@@ -141,26 +141,26 @@ Let developers scan dependencies without leaving VS Code.
 Parse installed dependencies and retrieve public npm metadata without installing or executing packages.
 
 ### Features
-1. Support npm `package-lock.json` versions 2 and 3, including scoped names and nested install paths.
-2. Extract package identity, exact version, dependency declarations, resolved URL, and integrity when present.
-3. Preserve multiple installed versions of the same package.
-4. Construct direct/transitive dependency graph with NetworkX.
-5. Query npm registry metadata using bounded concurrency, caching, timeouts, and retry limits.
-6. Save scan snapshots (SQLite is sufficient initially).
-7. Compare baseline and updated lockfiles to identify additions, removals, upgrades, and new transitive edges.
-8. Mark unavailable metadata as unknown; never guess.
+1. [x] Support npm `package-lock.json` versions 2 and 3, including scoped names and nested install paths (v1 remains supported too).
+2. [x] Extract package identity, exact version, dependency declarations, resolved URL, and integrity when present.
+3. [x] Preserve multiple installed versions of the same package.
+4. [x] Construct direct/transitive dependency graph with NetworkX.
+5. [x] Query npm registry metadata using bounded concurrency, caching, timeouts, and retry limits.
+6. [x] Save scan snapshots with SQLite and SQLAlchemy.
+7. [x] Compare persisted scans for additions, removals, upgrades, and new transitive edges.
+8. [x] Mark unavailable metadata as unknown; never guess.
 
 ### Done when
-- [ ] Two real lockfiles produce correct, distinct graphs.
-- [ ] Multiple versions of a package remain distinct.
-- [ ] Network failure is handled.
-- [ ] No scanned package code is executed.
+- [x] Four real repository lockfiles produce correct, distinct graphs.
+- [x] Multiple versions of a package remain distinct.
+- [x] Network failure is handled as unavailable metadata.
+- [x] No scanned package code is executed.
 
 ---
 
 ## Phase 4 — Explainable risk detection (4 hours)
 
-**Owner:** Omkar · **Support:** Aaditya (reviews synthetic fixture labeling) · **Status:** ⬜ Not started · **Where:** `backend/app/detection/`, `demo/`
+**Owner:** Omkar · **Support:** Aaditya (reviews synthetic fixture labeling) · **Status:** ✅ Done (2026-10-12) · **Where:** `backend/app/detection/`, `demo/`
 
 **Hands off to Aaditya:** `GET /api/scans/{id}/findings`.
 
@@ -173,7 +173,7 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 | New dependency | Baseline/current lockfile diff | Not inherently malicious |
 | Unexpected dependency expansion | New graph edges after update | Requires version comparison |
 | Unusual release timing | npm release timestamps | Requires sufficient history |
-| Trusted manifest mismatch | Approved hash vs current canonical manifest | Integrity deviation, not malware proof |
+| Trusted manifest mismatch | Approved hash vs current canonical manifest | Deferred to Phase 6 verification |
 | Maintainer/publisher change (optional) | Reliable historical snapshots | Do not infer from current metadata alone |
 | Known vulnerability (optional) | OSV advisory | Separate from anomaly detection |
 
@@ -185,10 +185,10 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 - Keep confidence and severity distinct.
 
 ### Done when
-- [ ] Normal upgrade is not automatically high risk.
-- [ ] Synthetic suspicious fixture triggers expected finding.
-- [ ] Every finding has supporting evidence.
-- [ ] Dependency paths are correct.
+- [x] Normal upgrade is not automatically high risk.
+- [x] Synthetic suspicious fixture triggers expected findings.
+- [x] Every finding has supporting evidence, confidence, severity, and deterministic priority.
+- [x] Dependency paths are correct.
 
 ---
 
@@ -251,21 +251,21 @@ Verify that current release evidence matches a previously approved anchored mani
 
 ## Phase 7 — Integration, security, testing (3 hours)
 
-**Owners:** Aaditya + Omkar (each tests the other's side) · **Status:** ⬜ Not started
+**Owners:** Aaditya + Omkar (each tests the other's side) · **Status:** 🟡 Mostly done — blockchain verification waits on Phase 6; manual clean-profile packaging remains
 
 ### End-to-end test cases
 | | Test | Owner |
 |---|---|---|
-| ⬜ | VS Code → FastAPI → npm analysis → findings → dashboard. | Aaditya + Omkar |
-| ⬜ | Valid lockfile scans correctly. | Omkar |
+| 🟡 | VS Code → FastAPI → npm analysis → findings → dashboard (implemented; extension smoke + live API/dashboard validated, consent click remains manual). | Aaditya + Omkar |
+| ✅ | Valid lockfile scans correctly. | Omkar |
 | ✅ | Malformed or oversized lockfile is rejected safely (backend tests). | Omkar |
 | ⬜ | No lockfile is handled (implemented; to test manually). | Aaditya |
-| ⬜ | Backend offline and npm registry timeout are handled. | Aaditya (offline) · Omkar (registry) |
-| ⬜ | Benign update does not trigger unjustified high risk. | Omkar |
-| ⬜ | Labeled synthetic suspicious fixture triggers expected rule. | Omkar |
+| ✅ | Backend offline and npm registry timeout are handled. | Aaditya (offline) · Omkar (registry) |
+| ✅ | Benign update does not trigger unjustified high risk. | Omkar |
+| ✅ | Labeled synthetic suspicious fixture triggers expected rule. | Omkar |
 | ⬜ | Missing blockchain record is not treated as mismatch. | Omkar |
 | ⬜ | Watcher is debounced and respects user consent (implemented; to test manually). | Aaditya |
-| ⬜ | No dependency scripts execute. | Omkar |
+| ✅ | No dependency scripts execute. | Omkar |
 | ⬜ | VSIX installs in a clean VS Code profile. | Aaditya |
 
 ### Deliverables

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { FindingsTreeProvider } from '../providers/findingsTreeProvider';
-import { ApiError, apiBaseUrl, checkHealth, submitScan } from '../services/apiClient';
+import { ApiError, apiBaseUrl, checkHealth, getFindings, submitScan, waitForScanCompletion } from '../services/apiClient';
 import { findLockfiles, projectName, readLockfile } from '../utils/workspace';
 
 const CLIENT = 'vscode-extension/0.1.0';
@@ -55,7 +55,15 @@ export async function scanDependencies(tree: FindingsTreeProvider, target?: vsco
       try {
         const res = await submitScan({ lockfile, project_name: lockfile.name ?? projectName(), client: CLIENT });
         tree.setLastScan({ kind: 'accepted', scanId: res.scan_id, message: res.message, at: new Date() });
-        void vscode.window.showInformationMessage(`Provenyx: ${res.message}`);
+        const completed = await waitForScanCompletion(res.scan_id);
+        const findings = await getFindings(res.scan_id);
+        tree.setFindings(findings);
+        tree.setLastScan({ kind: 'complete', scanId: res.scan_id, findingCount: findings.length, at: new Date() });
+        const action = await vscode.window.showInformationMessage(
+          `Provenyx: Scan complete with ${completed.summary?.findings ?? findings.length} finding(s).`,
+          'Open Dashboard',
+        );
+        if (action === 'Open Dashboard') await vscode.commands.executeCommand('provenyx.openDashboard', res.scan_id);
       } catch (err) {
         fail(tree, err);
       }

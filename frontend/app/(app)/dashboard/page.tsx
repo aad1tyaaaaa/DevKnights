@@ -52,9 +52,8 @@ export default function DashboardPage() {
         <BackendStatus />
       </div>
 
-      <EmptyState icon={<FileSearch className="size-5" aria-hidden />} title="No scans to show yet">
-        Dependency analysis arrives in a later release. Lockfiles submitted today are validated and acknowledged, but no findings are
-        produced or stored.
+      <EmptyState icon={<FileSearch className="size-5" aria-hidden />} title="Open scan investigations">
+        Submitted lockfiles are analyzed and stored by the API. Visit <Link href="/scans" className="font-semibold text-leaf hover:text-forest">Scans</Link> to inspect package evidence and findings.
       </EmptyState>
     </div>
   )

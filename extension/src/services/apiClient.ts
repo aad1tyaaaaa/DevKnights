@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { HealthResponse, ScanAccepted, ScanRequest } from '../types';
+import type { Finding, HealthResponse, ScanAccepted, ScanDetail, ScanRequest } from '../types';
 
 const HEALTH_TIMEOUT_MS = 5_000;
 const SCAN_TIMEOUT_MS = 60_000;
@@ -48,4 +48,23 @@ export function submitScan(body: ScanRequest): Promise<ScanAccepted> {
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     SCAN_TIMEOUT_MS,
   );
+}
+
+export function getScan(scanId: string): Promise<ScanDetail> {
+  return request<ScanDetail>(`/api/scans/${encodeURIComponent(scanId)}`, { method: 'GET' }, HEALTH_TIMEOUT_MS);
+}
+
+export function getFindings(scanId: string): Promise<Finding[]> {
+  return request<Finding[]>(`/api/scans/${encodeURIComponent(scanId)}/findings`, { method: 'GET' }, HEALTH_TIMEOUT_MS);
+}
+
+export async function waitForScanCompletion(scanId: string): Promise<ScanDetail> {
+  const deadline = Date.now() + SCAN_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const scan = await getScan(scanId);
+    if (scan.status === 'complete') return scan;
+    if (scan.status === 'failed') throw new ApiError(scan.error ?? 'Dependency analysis failed.');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new ApiError('Dependency analysis did not complete in time.');
 }

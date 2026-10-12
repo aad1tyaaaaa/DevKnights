@@ -10,4 +10,4 @@
 2. Press F5 at the repository root — the Extension Development Host opens this folder.
 3. Run **Provenyx: Scan Dependencies** and confirm.
 
-Expected result in Phase 1: the API returns a `scan_id` with status `accepted` and the message *“Lockfile received. Dependency analysis is not implemented in Phase 1.”* No findings are produced — this is intentional; detection arrives in Phase 2.
+Expected result: the API returns a `scan_id` with status `accepted` while Phase 3 analysis runs. `GET /api/scans/{scan_id}` returns the persisted summary, and `/graph` returns the real `ms@2.1.3` node with npm registry metadata. No findings are produced yet; detection arrives in Phase 4.

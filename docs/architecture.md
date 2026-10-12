@@ -14,8 +14,8 @@
            └───────────────►│ FastAPI backend :8000           │
                             │  api/      HTTP routes          │
                             │  models/   Pydantic contract    │
-                            │  parsers/  lockfile → model  (P2)│
-                            │  graph/    dependency graph  (P2)│
+                            │  parsers/  lockfile + npm metadata│
+                            │  graph/    graph + comparisons    │
                             │  detection/ explainable rules(P2+)
                             │  blockchain/ hash verification   │
                             └───────────────┬─────────────────┘
@@ -45,9 +45,9 @@ The monorepo does **not** use npm workspaces: each JS package has its own `node_
 - Nothing leaves the machine without a modal confirmation for each scan, naming the destination URL. Only the lockfile is sent.
 - The backend treats lockfile content as untrusted data: size-capped body (checked while streaming), strict schema, no echo of input in errors.
 - Error messages shown to users never include lockfile contents.
-- No external network calls are made in Phase 1. `httpx` is installed for the Phase 2 npm registry client.
+- Registry requests retrieve public metadata only, use bounded concurrency/timeouts/retries, and report failures as unavailable rather than inventing values.
 - Blockchain results are evidence, not verdicts: a match is not proof of safety; no record is not proof of compromise.
 
-## Persistence (planned)
+## Persistence
 
-Phase 1 stores nothing. Phase 2 introduces SQLite through SQLAlchemy with a `DATABASE_URL` setting (`sqlite:///./provenyx.db`), so moving to PostgreSQL is a connection-string change plus migrations (Alembic).
+Phase 3 stores submitted scan snapshots and completed graphs in SQLite through SQLAlchemy. Configure it with `PROVENYX_DATABASE_URL` (default `sqlite:///./provenyx.db`). A production move to PostgreSQL still requires migrations before deployment.

@@ -4,12 +4,12 @@
 
 Provenyx helps JavaScript and TypeScript developers investigate the npm dependencies recorded in a project's `package-lock.json`.
 
-> **Preview (0.1.0).** This release sets up the extension, sidebar, and connection to the Provenyx API. **Dependency analysis is not implemented yet** — a scan currently validates your lockfile and submits it to the API, which acknowledges it. No findings, risk scores, or verdicts are produced.
+> **Preview (0.1.0).** A scan validates and submits your lockfile, then the API builds a persisted dependency graph and retrieves public npm metadata. The sidebar shows evidence-backed investigation signals and links to the matching dashboard scan. Signals are not security verdicts.
 
 ## Features
 
 - **Provenyx: Scan Dependencies** — finds `package-lock.json` in your workspace, checks that it is valid, and (after you confirm) sends it to the Provenyx API.
-- **Provenyx: Show Findings** — opens the Provenyx sidebar showing the project, backend connection state, and last scan status.
+- **Provenyx: Show Findings** — opens the Provenyx sidebar showing the project, backend state, completed scan status, and real findings.
 - **Provenyx: Open Dashboard** — opens the Provenyx web dashboard.
 - **Provenyx: Check Backend Connection** — checks that the configured API is reachable.
 

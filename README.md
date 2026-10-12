@@ -4,7 +4,7 @@
 
 Software supply-chain security for JavaScript and TypeScript projects using npm. Provenyx analyzes `package-lock.json` files from inside VS Code — without installing or executing packages — and links to a web dashboard for deeper investigation, including blockchain-anchored release verification.
 
-> **Status: Phase 1 (foundation).** The extension, API, dashboard, and contract workspace are wired together and tested. Dependency analysis and detection are **not implemented yet**; no findings are produced.
+> **Status:** Phases 1, 3, and 4 are complete. The extension submits lockfiles, the API persists dependency graphs and evidence-backed findings, and the dashboard displays real scan investigations. Blockchain verification and Marketplace publication remain in progress.
 
 ## Repository layout
 
