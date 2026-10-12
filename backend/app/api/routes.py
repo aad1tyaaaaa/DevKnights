@@ -146,15 +146,35 @@ async def github_auth_status(
     )
 
 
+DEFAULT_AFTER_LOGIN = "/github"
+
+
+def safe_next_path(value: str | None) -> str:
+    """A same-site path to return to after sign-in. Anything else falls back to the default, so the
+    login link cannot be used as an open redirect (e.g. next=//evil.example or next=https://…)."""
+    if value and value.startswith("/") and not value.startswith(("//", "/\\")) and "\\" not in value and len(value) <= 512:
+        return value
+    return DEFAULT_AFTER_LOGIN
+
+
+def _frontend_redirect(path: str, **query: str) -> RedirectResponse:
+    separator = "&" if "?" in path else "?"
+    return RedirectResponse(f"{settings.frontend_url}{path}{separator}{urlencode(query)}")
+
+
 @router.get("/api/github/auth/login")
-def github_auth_login(github: Annotated[GitHubService, Depends(get_github_service)]) -> RedirectResponse:
+def github_auth_login(
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    next: str | None = None,
+) -> RedirectResponse:
     if not github.configured:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "GitHub authentication is not configured")
     state = secrets.token_urlsafe(32)
     response = RedirectResponse(github.authorization_url(state))
     response.set_cookie(
         GITHUB_STATE_COOKIE,
-        github.codec.encode({"state": state}, GITHUB_STATE_MAX_AGE),
+        # `next` rides in the encrypted state cookie, so the callback cannot be pointed elsewhere.
+        github.codec.encode({"state": state, "next": safe_next_path(next)}, GITHUB_STATE_MAX_AGE),
         max_age=GITHUB_STATE_MAX_AGE,
         httponly=True,
         secure=settings.secure_cookies,
@@ -173,14 +193,14 @@ async def github_auth_callback(
 ) -> RedirectResponse:
     state_payload = github.codec.decode(request.cookies.get(GITHUB_STATE_COOKIE)) if github.configured else None
     expected_state = state_payload.get("state") if state_payload else None
+    after_login = safe_next_path(state_payload.get("next") if state_payload else None)
     if error or not code or not state or not isinstance(expected_state, str) or not hmac.compare_digest(state, expected_state):
-        query = urlencode({"error": error or "invalid_oauth_state"})
-        return RedirectResponse(f"{settings.frontend_url}/github?{query}")
+        return _frontend_redirect(after_login, github_error=error or "invalid_oauth_state")
     try:
         token = await github.exchange_code(code)
     except GitHubApiError as exc:
-        return RedirectResponse(f"{settings.frontend_url}/github?{urlencode({'error': exc.detail})}")
-    response = RedirectResponse(f"{settings.frontend_url}/github?connected=1")
+        return _frontend_redirect(after_login, github_error=exc.detail)
+    response = _frontend_redirect(after_login, connected="1")
     response.delete_cookie(GITHUB_STATE_COOKIE)
     response.set_cookie(
         GITHUB_SESSION_COOKIE,

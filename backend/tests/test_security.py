@@ -54,3 +54,38 @@ def test_scan_listing_is_paginated():
     assert len(client.get("/api/scans", params={"limit": 2}).json()) == 2
     assert len(client.get("/api/scans", params={"limit": 2, "offset": 2}).json()) == 1
     assert client.get("/api/scans", params={"limit": 500}).status_code == 422
+
+
+def test_sign_in_return_path_cannot_be_used_as_an_open_redirect():
+    from app.api.routes import safe_next_path
+
+    assert safe_next_path("/dashboard") == "/dashboard"
+    assert safe_next_path("/scans/123?tab=graph") == "/scans/123?tab=graph"
+    for hostile in (None, "", "dashboard", "//evil.example", r"/\evil.example", "https://evil.example", r"/x\y"):
+        assert safe_next_path(hostile) == "/github"
+
+
+def test_hosted_postgres_urls_select_the_psycopg_driver():
+    from app.models.database import normalize_database_url
+
+    assert normalize_database_url("postgres://u:p@host/db?sslmode=require") == "postgresql+psycopg://u:p@host/db?sslmode=require"
+    assert normalize_database_url("postgresql://u:p@host/db") == "postgresql+psycopg://u:p@host/db"
+    assert normalize_database_url("sqlite:///./provenyx.db") == "sqlite:///./provenyx.db"
+
+
+def test_session_cookie_is_sealed_tamper_evident_and_expires(monkeypatch):
+    import time
+
+    from app.github import EncryptedCookieCodec
+
+    codec = EncryptedCookieCodec("session-secret")
+    sealed = codec.encode({"token": "gho_secret"}, max_age=60)
+
+    assert "gho_secret" not in sealed
+    assert codec.decode(sealed)["token"] == "gho_secret"
+    assert EncryptedCookieCodec("other-secret").decode(sealed) is None
+    tampered = sealed[:-2] + ("A" if sealed[-2] != "A" else "B") + sealed[-1]
+    assert codec.decode(tampered) is None
+    assert codec.decode("not-a-cookie") is None
+    monkeypatch.setattr(time, "time", lambda: 10**12)
+    assert codec.decode(sealed) is None

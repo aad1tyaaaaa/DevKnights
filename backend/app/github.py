@@ -3,12 +3,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import time
 from typing import Any
 from urllib.parse import quote, urlencode
 
 import httpx
-from Crypto.Cipher import AES
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import Settings
 from app.models.schemas import GitHubRepository
@@ -22,26 +24,33 @@ class GitHubApiError(RuntimeError):
 
 
 class EncryptedCookieCodec:
+    """AES-256-GCM sealed cookies: the GitHub token is unreadable and tamper-evident on the client.
+
+    Uses the `cryptography` package; its signed native module also loads on Windows machines whose
+    application-control policy blocks pycryptodome's cipher DLLs.
+    """
+
+    NONCE_BYTES = 12
+
     def __init__(self, secret: str) -> None:
-        self._key = hashlib.sha256(secret.encode("utf-8")).digest()
+        self._aead = AESGCM(hashlib.sha256(secret.encode("utf-8")).digest())
 
     def encode(self, payload: dict[str, Any], max_age: int) -> str:
         value = {**payload, "exp": int(time.time()) + max_age}
-        cipher = AES.new(self._key, AES.MODE_GCM)
-        ciphertext, tag = cipher.encrypt_and_digest(json.dumps(value, separators=(",", ":")).encode("utf-8"))
-        return base64.urlsafe_b64encode(cipher.nonce + tag + ciphertext).decode("ascii").rstrip("=")
+        nonce = os.urandom(self.NONCE_BYTES)
+        sealed = self._aead.encrypt(nonce, json.dumps(value, separators=(",", ":")).encode("utf-8"), None)
+        return base64.urlsafe_b64encode(nonce + sealed).decode("ascii").rstrip("=")
 
     def decode(self, value: str | None) -> dict[str, Any] | None:
         if not value:
             return None
         try:
             raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-            cipher = AES.new(self._key, AES.MODE_GCM, nonce=raw[:16])
-            payload = json.loads(cipher.decrypt_and_verify(raw[32:], raw[16:32]))
+            payload = json.loads(self._aead.decrypt(raw[: self.NONCE_BYTES], raw[self.NONCE_BYTES :], None))
             if not isinstance(payload, dict) or payload.get("exp", 0) < time.time():
                 return None
             return payload
-        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+        except (InvalidTag, ValueError, KeyError, TypeError, json.JSONDecodeError):
             return None
 
 

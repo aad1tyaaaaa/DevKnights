@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import { NAV } from '@/components/app-sidebar'
+import { AccountMenu } from '@/components/github-auth'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 export function AppNavbar() {
@@ -40,7 +41,10 @@ export function AppNavbar() {
               </>
             )}
           </nav>
-          <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-4">
+            <AccountMenu />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
     </header>

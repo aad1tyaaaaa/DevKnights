@@ -33,10 +33,21 @@ class ScanFindingRow(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+def normalize_database_url(url: str) -> str:
+    """Hosted Postgres providers (Neon, Render, Supabase) hand out postgres:// or postgresql:// URLs;
+    SQLAlchemy needs the driver named to use psycopg 3."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
 class ScanRepository:
     def __init__(self, database_url: str) -> None:
+        database_url = normalize_database_url(database_url)
         connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-        self._engine = create_engine(database_url, connect_args=connect_args)
+        # pre_ping: serverless Postgres closes idle connections; reconnect instead of failing a request.
+        self._engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
         self._sessions = sessionmaker(self._engine, expire_on_commit=False)
         Base.metadata.create_all(self._engine)
 

@@ -140,3 +140,18 @@ def test_github_scan_rejects_unsafe_lockfile_path() -> None:
         )
 
     assert response.status_code == 422
+
+def test_sign_in_returns_to_the_requested_page_and_reports_failures_there() -> None:
+    github = configured_github()
+    app.dependency_overrides[get_github_service] = lambda: github
+
+    with TestClient(app, follow_redirects=False) as client:
+        login = client.get("/api/github/auth/login", params={"next": "/dashboard"})
+        state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+        callback = client.get("/api/github/auth/callback", params={"code": "oauth-code", "state": state})
+        assert callback.headers["location"] == "http://localhost:3000/dashboard?connected=1"
+
+        client.get("/api/github/auth/login", params={"next": "//evil.example"})
+        denied = client.get("/api/github/auth/callback", params={"error": "access_denied"})
+        assert denied.headers["location"] == "http://localhost:3000/github?github_error=access_denied"
+    app.dependency_overrides.clear()

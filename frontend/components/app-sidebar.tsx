@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FilePlus2, GitFork, History, LayoutDashboard, Settings } from 'lucide-react'
+import { SidebarAccount } from '@/components/github-auth'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 
@@ -50,11 +51,17 @@ export function AppSidebar() {
         <div className="mt-3">
           <NavLinks />
         </div>
+        <div className="mt-auto">
+          <SidebarAccount />
+        </div>
       </aside>
       <header className="flex flex-col gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 md:hidden">
-        <Link href="/" aria-label="Provenyx home">
-          <Logo light />
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link href="/" aria-label="Provenyx home">
+            <Logo light />
+          </Link>
+          <SidebarAccount compact />
+        </div>
         <NavLinks horizontal />
       </header>
     </>

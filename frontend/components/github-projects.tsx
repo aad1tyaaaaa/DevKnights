@@ -6,7 +6,7 @@ import { ExternalLink, FileCode2, GitFork, LoaderCircle, Lock, LogOut, Search } 
 import { primaryButton, secondaryButton } from '@/components/page-header'
 import { EmptyState, ErrorState, LoadingState } from '@/components/states'
 import { apiFetch, apiPost, useApi } from '@/lib/api'
-import { API_BASE_URL, API_KEY } from '@/lib/config'
+import { signInHref, signOut } from '@/components/github-auth'
 import type { GitHubAuthStatus, GitHubRepository, ScanAccepted } from '@/lib/types'
 
 type Discovery =
@@ -26,7 +26,7 @@ export function GitHubProjects() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
-    const error = new URLSearchParams(window.location.search).get('error')
+    const error = new URLSearchParams(window.location.search).get('github_error')
     if (error) setActionError(`GitHub authorization failed: ${error}`)
   }, [])
 
@@ -57,7 +57,7 @@ export function GitHubProjects() {
   }
 
   async function disconnect() {
-    await fetch(`${API_BASE_URL}/api/github/auth/logout`, { method: 'POST', credentials: 'include', headers: API_KEY ? { 'X-Provenyx-Key': API_KEY } : undefined })
+    await signOut()
     setDiscovery(null)
     reloadAuth()
   }
@@ -80,7 +80,7 @@ export function GitHubProjects() {
         {actionError && <ErrorState title="Could not connect GitHub">{actionError}</ErrorState>}
         <EmptyState icon={<GitFork className="size-5" aria-hidden />} title="Connect your GitHub account">
           <p>Authorize repository access. Provenyx itself only performs read requests, retrieves the lockfile you choose, and never runs repository code.</p>
-          <a className={`${primaryButton} mt-5`} href={`${API_BASE_URL}/api/github/auth/login`}>
+          <a className={`${primaryButton} mt-5`} href={signInHref('/github')}>
             <GitFork className="size-4" aria-hidden /> Connect GitHub
           </a>
         </EmptyState>

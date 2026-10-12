@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { motion, useMotionTemplate, useScroll, useSpring, useTransform } from 'framer-motion'
+import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
+import { GitHubMark, signInHref, useGitHubAuth, useSignInError } from '@/components/github-auth'
 
 const VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/'
 const HERO_VIDEO = `${VIDEO}hf_20260622_083515_290e5a10-0b95-41af-a5e2-32b6389baa4d.mp4`
@@ -105,14 +106,41 @@ function Navbar({ visible }: { visible: boolean }) {
       </Hover>
     ))
   const logo = <img src="/logo.png" alt="" aria-hidden className="size-full object-contain" />
-  const cta = (cls: string) => (
+  const { status } = useGitHubAuth()
+  const [signInError] = useSignInError()
+  const signedIn = status?.connected === true
+  // The primary button is always "Sign in with GitHub" until the user is signed in. If the backend has no
+  // GitHub OAuth app yet, it opens the sign-in page, which explains the setup instead of erroring.
+  const signIn = !signedIn
+  const signInTarget = status?.configured ? signInHref('/dashboard') : '/signin'
+  const avatar = (size: string) =>
+    signedIn && (
+      <Link href="/dashboard" title={`Signed in as ${status.login}`} className="block shrink-0 overflow-hidden rounded-full ring-2 ring-white/30 transition hover:ring-white/60">
+        {status.avatar_url ? (
+          <img src={status.avatar_url} alt={status.login ?? 'GitHub account'} className={size} />
+        ) : (
+          <span className={`grid place-items-center bg-brand/70 ${size}`}>
+            <GitHubMark className="size-5 text-white" />
+          </span>
+        )}
+      </Link>
+    )
+
+  const cta = (cls: string, label: { signIn: string; open: string }) => (
     <Hover>
       {(h) => (
         <motion.span whileHover={{ scale: 1.03, backgroundColor: '#6b1239' }} whileTap={{ scale: 0.97 }} className="rounded-full bg-brand">
-          <Link href="/dashboard" className={`flex items-center gap-2 font-medium text-white ${cls}`}>
-            <ScrambleText text="Open dashboard" isHovered={h} />
-            <ArrowRight size={15} aria-hidden />
-          </Link>
+          {signIn ? (
+            <a href={signInTarget} className={`flex items-center gap-2 font-medium text-white ${cls}`}>
+              <GitHubMark className="size-[18px]" />
+              <ScrambleText text={label.signIn} isHovered={h} />
+            </a>
+          ) : (
+            <Link href="/dashboard" className={`flex items-center gap-2 font-medium text-white ${cls}`}>
+              <ScrambleText text={label.open} isHovered={h} />
+              <ArrowRight size={15} aria-hidden />
+            </Link>
+          )}
         </motion.span>
       )}
     </Hover>
@@ -154,7 +182,11 @@ function Navbar({ visible }: { visible: boolean }) {
             {open && links('text-[16px]')}
           </motion.nav>
         </div>
-        {cta('h-12 px-6 text-[15px]')}
+        <div className="flex items-center gap-2">
+          {signInError && <span role="alert" className="mr-2 rounded-full bg-black/60 px-3 py-1 text-xs text-[#ffb3a8] backdrop-blur">{signInError}</span>}
+          {avatar('size-12')}
+          {cta('h-12 px-6 text-[15px]', { signIn: 'Sign in with GitHub', open: 'Open dashboard' })}
+        </div>
       </div>
 
       {/* Mobile */}
@@ -179,7 +211,10 @@ function Navbar({ visible }: { visible: boolean }) {
           </button>
           {open && links('text-[13px]')}
         </motion.nav>
-        <span className="ml-auto">{cta('h-9 px-3.5 text-[13px]')}</span>
+        <span className="ml-auto flex items-center gap-2">
+          {!open && avatar('size-9')}
+          {cta('h-9 px-3.5 text-[13px]', { signIn: 'Sign in', open: 'Dashboard' })}
+        </span>
       </div>
     </motion.header>
   )
@@ -301,26 +336,36 @@ function Hero({ ready }: { ready: boolean }) {
   )
 }
 
+const STORY =
+  'Provenyx follows every package in your lockfile, direct and transitive, without running a line of it. Explainable rules over public npm ' +
+  'metadata surface unusual releases. Blockchain-anchored manifest hashes show whether a release record matches what was published. Every ' +
+  'finding shows its reasoning.'
+
+/** One word that brightens from dim to full white as scrolling reaches its share of the paragraph. */
+function ScrollWord({ word, progress, range }: { word: string; progress: MotionValue<number>; range: [number, number] }) {
+  const opacity = useTransform(progress, range, [0.2, 1])
+  return <motion.span style={{ opacity }}>{word} </motion.span>
+}
+
 function Story() {
-  const ref = useRef<HTMLElement>(null)
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
-  const smooth = useSpring(scrollYProgress, { stiffness: 15, damping: 32, mass: 1.8 })
-  const y = useTransform(smooth, [0, 1], [60, -120])
-  const opacity = useTransform(smooth, [0.3, 0.5], [0, 1])
-  const transform = useMotionTemplate`rotateX(24deg) translateY(${y}px) translateZ(15px)`
+  const ref = useRef<HTMLParagraphElement>(null)
+  // 0 when the paragraph's top enters the bottom of the screen, 1 when its bottom reaches the middle.
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.5'] })
+  const words = STORY.split(' ')
   return (
-    <section ref={ref} id="how" className="relative flex h-screen h-[100dvh] items-center justify-center overflow-hidden">
+    <section id="how" className="relative flex h-screen h-[100dvh] items-center justify-center overflow-hidden">
       <BgVideo src={STORY_VIDEO} />
       <div className="absolute inset-x-0 top-0 z-10 h-[180px]" style={{ background: 'linear-gradient(#010103, transparent)' }} />
-      <div className="relative z-10 mx-auto max-w-5xl" style={{ perspective: 400 }}>
-        <motion.p
-          style={{ transform, opacity }}
-          className="select-none px-6 text-center font-sans text-[22px] font-normal leading-[1.35] tracking-[-0.02em] text-white sm:px-12 sm:text-[30px] md:text-[36px] lg:text-[42px]"
+      <div className="relative z-10 mx-auto max-w-5xl">
+        <p
+          ref={ref}
+          aria-label={STORY}
+          className="px-6 text-center font-sans text-[22px] font-normal leading-[1.35] tracking-[-0.02em] text-white sm:px-12 sm:text-[30px] md:text-[36px] lg:text-[42px]"
         >
-          Provenyx follows every package in your lockfile, direct and transitive, without running a line of it. Explainable rules over public npm
-          metadata surface unusual releases. Blockchain-anchored manifest hashes show whether a release record matches what was published. Every
-          finding shows its reasoning.
-        </motion.p>
+          {words.map((word, i) => (
+            <ScrollWord key={i} word={word} progress={scrollYProgress} range={[i / words.length, (i + 1) / words.length]} />
+          ))}
+        </p>
       </div>
     </section>
   )
