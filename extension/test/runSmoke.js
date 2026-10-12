@@ -9,7 +9,13 @@ async function main() {
   process.env.PROVENYX_AUTH_PROVIDER = 'provenyx-test';
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'provenyx-vscode-profile-'));
   fs.mkdirSync(path.join(userData, 'User'));
-  fs.writeFileSync(path.join(userData, 'User/settings.json'), JSON.stringify({ 'provenyx.autoScanEnabled': false }));
+  fs.writeFileSync(
+    path.join(userData, 'User/settings.json'),
+    JSON.stringify({
+      'provenyx.apiBaseUrl': 'http://localhost:8000',
+      'provenyx.autoScanEnabled': false,
+    }),
+  );
 
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'provenyx-empty-'));
   try {

@@ -2,8 +2,14 @@
   "name": "provenyx-security",
   "displayName": "Provenyx Security",
   "description": "Software dependency trust and supply-chain security analysis",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "OmkarPramodBandikatte",
+  "contributors": [
+    "Aaditya Shivshankar Jaiswar",
+    "Omkar Bandikatte",
+    "RONAK PARMAR - 60009230091",
+    "VIVEK CHAUHAN - 60009230029"
+  ],
   "license": "MIT",
   "private": true,
   "icon": "images/icon.png",

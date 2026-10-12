@@ -52,6 +52,13 @@ Scan history in the web dashboard:
 
 GitHub authentication in VS Code. The public extension uses the deployed Provenyx API and dashboard. To run those services locally instead, follow [the development guide](https://github.com/aad1tyaaaaa/DevKnights/blob/main/docs/development.md).
 
+## Contributors
+
+- Aaditya Shivshankar Jaiswar
+- Omkar Bandikatte
+- RONAK PARMAR - 60009230091
+- VIVEK CHAUHAN - 60009230029
+
 ## Support
 
 Report issues at <https://github.com/aad1tyaaaaa/DevKnights/issues>.

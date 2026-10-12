@@ -38,6 +38,7 @@ function startFakeApi(mode) {
         return send(200, { url: 'https://dashboard.example/session' });
       }
       if (req.method === 'POST' && req.url === '/api/scans') {
+        assert.strictEqual(req.headers.authorization, 'Bearer synthetic-github-token');
         const parsed = JSON.parse(body);
         assert.strictEqual(parsed.lockfile.lockfileVersion, 3, 'extension must send the parsed lockfile');
         server.lastProjectName = parsed.project_name;
@@ -46,12 +47,16 @@ function startFakeApi(mode) {
         return send(202, { scan_id: SCAN_ID, status: 'accepted', message: 'Lockfile received.' });
       }
       if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}`) {
+        assert.strictEqual(req.headers.authorization, 'Bearer synthetic-github-token');
         return send(200, {
           scan_id: SCAN_ID, status: 'complete', created_at: new Date().toISOString(), project_name: 'x', error: null,
           summary: { packages: 2, direct: 1, transitive: 1, findings: 1 }, warnings: [],
         });
       }
-      if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}/findings`) return send(200, [SYNTHETIC_FINDING]);
+      if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}/findings`) {
+        assert.strictEqual(req.headers.authorization, 'Bearer synthetic-github-token');
+        return send(200, [SYNTHETIC_FINDING]);
+      }
       send(404, { detail: 'Not Found' });
     });
   });
@@ -78,6 +83,11 @@ async function runChecks() {
   assert.ok(ext, 'extension not loaded');
   const { tree } = await ext.activate();
   assert.ok(ext.isActive, 'extension did not activate');
+  assert.strictEqual(
+    vscode.workspace.getConfiguration('provenyx').get('apiBaseUrl'),
+    'https://devknights.onrender.com',
+    'activation must migrate the legacy localhost API setting',
+  );
 
   const commands = await vscode.commands.getCommands(true);
   for (const id of ['provenyx.scanDependencies', 'provenyx.showFindings', 'provenyx.openDashboard', 'provenyx.checkBackend', 'provenyx.signIn']) {

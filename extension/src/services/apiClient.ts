@@ -4,6 +4,7 @@ import type { Finding, HealthResponse, Scan, ScanAccepted, ScanRequest } from '.
 const HEALTH_TIMEOUT_MS = 5_000;
 const READ_TIMEOUT_MS = 15_000;
 const SCAN_TIMEOUT_MS = 60_000;
+export const DEFAULT_API_BASE_URL = 'https://devknights.onrender.com';
 
 export class ApiError extends Error {
   constructor(
@@ -22,9 +23,7 @@ export class ApiError extends Error {
 }
 
 export function apiBaseUrl(): string {
-  const raw = vscode.workspace
-    .getConfiguration('provenyx')
-    .get<string>('apiBaseUrl', 'https://devknights.onrender.com');
+  const raw = vscode.workspace.getConfiguration('provenyx').get<string>('apiBaseUrl', DEFAULT_API_BASE_URL);
   return raw.replace(/\/+$/, '');
 }
 

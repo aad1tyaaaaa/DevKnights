@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Migrate legacy localhost API settings to the deployed Render backend once.
+- Warn when the obsolete `Provenyx.provenyx-security` extension is installed alongside this extension.
+- Authenticate extension scan creation and reads with the signed-in GitHub session.
+
 ## 0.1.4
 
 - Use the deployed Render backend for API requests by default.

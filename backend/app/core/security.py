@@ -24,11 +24,25 @@ KEY_EXEMPT_PATHS = {
     "/api/github/auth/callback",
     "/api/github/auth/extension/callback",
 }
+GITHUB_BEARER_PATHS = {"/api/github/auth/extension"}
+
+
+def _uses_github_bearer(request: Request) -> bool:
+    path = request.url.path
+    if path not in GITHUB_BEARER_PATHS and not path.startswith("/api/scans"):
+        return False
+    scheme, separator, token = request.headers.get("Authorization", "").partition(" ")
+    return settings.github_auth_configured and bool(separator and scheme.lower() == "bearer" and token)
 
 
 def api_key_rejection(request: Request) -> JSONResponse | None:
     """401 response when an access key is configured and the request lacks it; None to let it through."""
-    if settings.api_key is None or request.method == "OPTIONS" or request.url.path in KEY_EXEMPT_PATHS:
+    if (
+        settings.api_key is None
+        or request.method == "OPTIONS"
+        or request.url.path in KEY_EXEMPT_PATHS
+        or _uses_github_bearer(request)
+    ):
         return None
     supplied = request.headers.get(API_KEY_HEADER, "").encode()
     if hmac.compare_digest(supplied, settings.api_key.get_secret_value().encode()):

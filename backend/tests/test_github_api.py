@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app.api.routes import GITHUB_SESSION_COOKIE, get_github_service, get_scan_service
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.github import GitHubService
 from app.main import app
 from app.models.database import ScanRepository
@@ -206,6 +206,25 @@ def test_extension_github_session_requires_bearer_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "A GitHub bearer token is required"
+
+
+def test_extension_github_bearer_does_not_require_shared_api_key(monkeypatch) -> None:
+    github = configured_github()
+    app.dependency_overrides[get_github_service] = lambda: github
+    monkeypatch.setattr(settings, "api_key", SecretStr("deployment-key"))
+    monkeypatch.setattr(settings, "github_client_id", "client-id")
+    monkeypatch.setattr(settings, "github_client_secret", SecretStr("client-secret"))
+    monkeypatch.setattr(settings, "github_session_secret", SecretStr("session-secret"))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/github/auth/extension",
+            headers={"Authorization": "Bearer github-token"},
+            json={"next": "/dashboard"},
+        )
+
+    app.dependency_overrides.pop(get_github_service, None)
+    assert response.status_code == 200
 
 
 def test_github_scan_rejects_unsafe_lockfile_path() -> None:

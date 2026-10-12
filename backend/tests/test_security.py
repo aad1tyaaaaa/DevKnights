@@ -1,7 +1,9 @@
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
+from starlette.requests import Request
 
 from app.core.config import settings
-from app.core.security import submission_limiter
+from app.core.security import api_key_rejection, submission_limiter
 from app.main import app
 
 LOCKFILE = {"lockfileVersion": 3, "packages": {"": {"dependencies": {}}}}
@@ -13,8 +15,6 @@ def test_without_a_key_the_api_is_open_for_local_development():
 
 
 def test_with_a_key_every_api_route_requires_it(monkeypatch):
-    from pydantic import SecretStr
-
     monkeypatch.setattr(settings, "api_key", SecretStr("demo-secret"))
     client = TestClient(app)
 
@@ -24,6 +24,53 @@ def test_with_a_key_every_api_route_requires_it(monkeypatch):
     assert client.get("/api/scans", headers={"X-Provenyx-Key": "wrong"}).status_code == 401
     assert client.get("/api/scans", headers={"X-Provenyx-Key": "demo-secret"}).status_code == 200
     assert client.get("/health").status_code == 200  # connectivity checks stay open
+
+
+def test_configured_github_bearer_reaches_only_authenticated_extension_routes(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", SecretStr("demo-secret"))
+    monkeypatch.setattr(settings, "github_client_id", "client-id")
+    monkeypatch.setattr(settings, "github_client_secret", SecretStr("client-secret"))
+    monkeypatch.setattr(settings, "github_session_secret", SecretStr("session-secret"))
+
+    def request(path: str, authorization: str = "Bearer github-token") -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": path,
+                "headers": [(b"authorization", authorization.encode())],
+                "query_string": b"",
+                "server": ("testserver", 80),
+                "client": ("testclient", 50000),
+                "scheme": "http",
+            }
+        )
+
+    assert api_key_rejection(request("/api/github/auth/extension")) is None
+    assert api_key_rejection(request("/api/scans")) is None
+    assert api_key_rejection(request("/api/scans/scan-id/findings")) is None
+    assert api_key_rejection(request("/api/gate")) is not None
+    assert api_key_rejection(request("/api/scans", "Basic credentials")) is not None
+
+
+def test_github_bearer_cannot_bypass_api_key_when_oauth_is_unconfigured(monkeypatch):
+    monkeypatch.setattr(settings, "api_key", SecretStr("demo-secret"))
+    monkeypatch.setattr(settings, "github_client_id", None)
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/scans",
+            "headers": [(b"authorization", b"Bearer github-token")],
+            "query_string": b"",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "scheme": "http",
+        }
+    )
+
+    assert api_key_rejection(request) is not None
 
 
 def test_rejections_still_carry_cors_headers_so_the_dashboard_can_read_them(monkeypatch):
