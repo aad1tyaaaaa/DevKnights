@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -47,6 +48,96 @@ class ScanAccepted(BaseModel):
     scan_id: str
     status: Literal["accepted"]
     message: str
+
+
+class ScanSummary(BaseModel):
+    packages: int
+    direct: int
+    transitive: int
+    findings: int
+
+
+class ScanDetail(BaseModel):
+    scan_id: str
+    status: Literal["accepted", "analyzing", "complete", "failed"]
+    created_at: datetime
+    project_name: str | None
+    summary: ScanSummary | None = None
+    warnings: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class RegistryMetadataResponse(BaseModel):
+    status: Literal["available", "unavailable"]
+    description: str | None = None
+    license: str | None = None
+    deprecated: str | None = None
+    published_at: str | None = None
+    dist_integrity: str | None = None
+    error: str | None = None
+
+
+class GraphNode(BaseModel):
+    id: str
+    name: str
+    version: str
+    direct: bool
+    lockfile_paths: list[str]
+    resolved_urls: list[str] = Field(default_factory=list)
+    lockfile_integrities: list[str] = Field(default_factory=list)
+    registry: RegistryMetadataResponse
+
+
+class GraphEdge(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    source: str = Field(alias="from")
+    target: str = Field(alias="to")
+    type: Literal["prod", "dev", "optional", "peer"]
+
+
+class ScanGraph(BaseModel):
+    scan_id: str
+    status: Literal["accepted", "analyzing", "complete", "failed"]
+    nodes: list[GraphNode] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class VersionChangeResponse(BaseModel):
+    name: str
+    from_versions: list[str]
+    to_versions: list[str]
+
+
+class ScanComparisonResponse(BaseModel):
+    baseline_scan_id: str
+    current_scan_id: str
+    added_packages: list[str]
+    removed_packages: list[str]
+    version_changes: list[VersionChangeResponse]
+    added_edges: list[GraphEdge]
+
+
+class FindingEvidence(BaseModel):
+    source: Literal["npm-registry", "lockfile", "registry-contract"]
+    field: str
+    value: Any
+    observed_at: datetime
+
+
+class Finding(BaseModel):
+    id: str
+    rule_id: str
+    package: str
+    version: str
+    severity: Literal["info", "low", "medium", "high"]
+    confidence: Literal["low", "medium", "high"]
+    priority_score: int = Field(ge=0, le=100)
+    title: str
+    explanation: str
+    evidence: list[FindingEvidence] = Field(min_length=1)
+    paths: list[list[str]] = Field(default_factory=list)
 
 
 class ErrorResponse(BaseModel):

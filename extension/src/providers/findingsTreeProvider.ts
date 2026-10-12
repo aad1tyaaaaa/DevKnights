@@ -97,7 +97,9 @@ export class FindingsTreeProvider implements vscode.TreeDataProvider<Node> {
       return [t];
     }
 
-    const sorted = [...s.findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
+    const sorted = [...s.findings].sort(
+      (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || b.priority_score - a.priority_score,
+    );
     const group = new vscode.TreeItem(`Findings (${sorted.length})`, vscode.TreeItemCollapsibleState.Expanded) as Node;
     group.iconPath = new vscode.ThemeIcon('list-tree');
     group.children = sorted.map((f) => findingItem(s.scan.scan_id, f));
@@ -111,7 +113,7 @@ function findingItem(scanId: string, f: Finding): vscode.TreeItem {
   t.iconPath = SEVERITY_ICON[f.severity] ?? SEVERITY_ICON.info;
   const md = new vscode.MarkdownString();
   md.appendMarkdown(`**${f.title}**\n\n`);
-  md.appendText(`Severity: ${f.severity} · Confidence: ${f.confidence} · Rule: ${f.rule_id}\n\n${f.explanation}`);
+  md.appendText(`Severity: ${f.severity} · Confidence: ${f.confidence} · Priority: ${f.priority_score}/100 · Rule: ${f.rule_id}\n\n${f.explanation}`);
   if (f.paths[0]) md.appendText(`\n\nPath: ${f.paths[0].join(' → ')}`);
   t.tooltip = md;
   t.command = openScan(scanId, f.id);

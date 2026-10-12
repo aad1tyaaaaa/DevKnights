@@ -4,7 +4,7 @@
 
 Provenyx helps JavaScript and TypeScript developers investigate the npm dependencies recorded in a project's `package-lock.json`, without installing or running any of them.
 
-> **Preview.** The extension needs a running Provenyx API (see [Requirements](#requirements)). Dependency analysis is being rolled out on the API side. Until your API provides analysis results, a scan is validated and acknowledged, and the sidebar says that no findings are available yet. Provenyx never shows invented findings.
+> **Preview.** The extension needs a running Provenyx API (see [Requirements](#requirements)). After you confirm a scan, the API builds a dependency graph from your lockfile, reads public npm metadata, and runs explainable detection rules. Findings are investigation signals, not security verdicts. Provenyx never shows invented findings.
 
 ## Features
 

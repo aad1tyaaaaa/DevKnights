@@ -10,11 +10,11 @@ Live status of the work. The plan and ownership are in [PROVENYX_END_TO_END_PHAS
 |---|---|---|---|
 | 1 | Foundation | Aaditya + Omkar | ✅ Done |
 | 2 | VS Code extension | Aaditya | ✅ Done |
-| 3 | Real npm scanner | Omkar | ⬜ Not started |
-| 4 | Risk engine | Omkar | ⬜ Not started |
-| 5 | Web dashboard | Aaditya | ✅ Done (UI); real data arrives with Phases 3–4 |
+| 3 | Real npm scanner | Omkar | ✅ Done |
+| 4 | Risk engine | Omkar | ✅ Done |
+| 5 | Web dashboard | Aaditya | ✅ Done — verified with real backend data |
 | 6 | Blockchain verification | Omkar + Aaditya | 🟡 Aaditya's part ✅ · Omkar's part ⬜ |
-| 7 | Integration and testing | Both | ⬜ Not started |
+| 7 | Integration and testing | Both | 🟡 Mostly done — Phase 6 cases remain |
 | 8 | Marketplace and demo | Aaditya | 🟡 Ready; ⛔ blocked on publisher ID + license |
 
 ---
@@ -25,7 +25,7 @@ Live status of the work. The plan and ownership are in [PROVENYX_END_TO_END_PHAS
 |---|---|---|
 | ⛔ Marketplace publisher ID | Aaditya | Create the publisher (Microsoft account + Azure DevOps org) and set `publisher` in `extension/package.json`. |
 | ⛔ License | Aaditya + Omkar | `extension/LICENSE` is an all-rights-reserved placeholder. Pick one and update the `license` field. |
-| ⏳ Endpoints for real data | Omkar | `GET /api/scans`, `/api/scans/{id}`, `/graph`, `/findings`, `POST /api/releases/verify`, shapes in `docs/api-contract.md`. The extension and dashboard already consume them. |
+| ⏳ Release verification endpoint | Omkar | `POST /api/releases/verify` (Phase 6), shape in `docs/api-contract.md`. The dashboard already calls it and shows "not available yet" until it exists. |
 
 ## Handoff to Omkar
 
@@ -102,3 +102,20 @@ Branch: `aaditya/phases-2-5-6-8`.
 | VSIX package + clean-profile install | ✅ |
 | Frontend production build (type-checked) | ✅ |
 | Dashboard interaction checks | ✅ 12/12 |
+
+### 2026-10-12 — Merged `aaditya/phases-2-5-6-8` and `omkar/phase-4-7-implementation` into `main`
+
+- Backend: Omkar's Phases 3–4 taken as-is (SQLite persistence, lockfile parser, NetworkX graph, npm registry client, detection rules, scan comparison, 34 new tests).
+- Conflicts: 12 files (extension, dashboard, contract, roadmap). Resolved by keeping Aaditya's extension and dashboard and adapting them to the backend's real responses:
+  - `GET /api/scans` and `/findings` return bare JSON arrays.
+  - Findings carry `priority_score` (shown, and used to sort within a severity).
+  - The project is not a graph node; paths start with `"root"`, so the UI draws a project node linked to the direct dependencies.
+  - Scan and graph `warnings` are shown as "Analysis notes"; npm registry metadata (license, published date, deprecation, integrity) appears in the package drawer.
+- `docs/api-contract.md` now documents the implemented shapes. `POST /api/releases/verify` remains the agreed Phase 6 shape.
+- Roadmap statuses from both branches combined.
+- Verified after the merge:
+  - backend 40 tests pass
+  - contracts 5 tests pass
+  - extension smoke test runs a **real** scan to completion in VS Code
+  - frontend build passes
+  - 14/14 browser checks pass, including real findings, graph and registry data from the merged backend

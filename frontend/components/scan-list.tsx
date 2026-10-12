@@ -9,7 +9,7 @@ import { formatDate } from '@/lib/format'
 import type { Scan } from '@/lib/types'
 
 export function useScans() {
-  return useApi<{ scans: Scan[] }>('/api/scans')
+  return useApi<Scan[]>('/api/scans')
 }
 
 export function ScanHistory({ limit }: { limit?: number }) {
@@ -18,17 +18,17 @@ export function ScanHistory({ limit }: { limit?: number }) {
 }
 
 /** Renders the shared loading / not-available / error states for the scan list, or the list itself. */
-export function ScanList({ result, limit }: { result: Result<{ scans: Scan[] }>; limit?: number }) {
+export function ScanList({ result, limit }: { result: Result<Scan[]>; limit?: number }) {
   if (result.state === 'loading') return <LoadingState label="Loading scans…" />
   if (result.state === 'error') return <ErrorState title="Could not load scans">{result.message}</ErrorState>
   if (result.state === 'unavailable')
     return (
       <EmptyState icon={<History className="size-5" aria-hidden />} title="Scan history is not available yet">
-        The connected API does not provide scan history yet. Scans you submit are still accepted; history appears here once the backend stores them.
+        The connected API does not provide scan history. Check that <code>provenyx.apiBaseUrl</code> and the dashboard point to an up-to-date Provenyx backend.
       </EmptyState>
     )
 
-  const scans = limit ? result.data.scans.slice(0, limit) : result.data.scans
+  const scans = limit ? result.data.slice(0, limit) : result.data
   if (scans.length === 0)
     return (
       <EmptyState icon={<History className="size-5" aria-hidden />} title="No scans yet">

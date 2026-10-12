@@ -13,14 +13,14 @@ const SYNTHETIC_FINDING = {
   version: '0.0.1',
   severity: 'medium',
   confidence: 'high',
+  priority_score: 60,
   title: 'SYNTHETIC test finding',
   explanation: 'Test fixture only.',
-  evidence: [{ source: 'lockfile', field: 'test', value: 'test', observed_at: null }],
-  unknowns: [],
-  paths: [['root@1.0.0', 'synthetic-pkg@0.0.1']],
+  evidence: [{ source: 'lockfile', field: 'test', value: 'test', observed_at: '2026-10-12T00:00:00Z' }],
+  paths: [['root', 'synthetic-pkg@0.0.1']],
 };
 
-/** mode "phase1": only health + POST /api/scans exist (like the current backend). mode "full": whole contract. */
+/** mode "phase1": only health + POST /api/scans exist (older backend). mode "full": scan status + findings like the current backend. */
 function startFakeApi(mode) {
   const server = http.createServer((req, res) => {
     const send = (status, body) => {
@@ -40,10 +40,10 @@ function startFakeApi(mode) {
       if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}`) {
         return send(200, {
           scan_id: SCAN_ID, status: 'complete', created_at: new Date().toISOString(), project_name: 'x', error: null,
-          summary: { packages: 2, direct: 1, transitive: 1, findings: 1 },
+          summary: { packages: 2, direct: 1, transitive: 1, findings: 1 }, warnings: [],
         });
       }
-      if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}/findings`) return send(200, { scan_id: SCAN_ID, findings: [SYNTHETIC_FINDING] });
+      if (mode === 'full' && req.url === `/api/scans/${SCAN_ID}/findings`) return send(200, [SYNTHETIC_FINDING]);
       send(404, { detail: 'Not Found' });
     });
   });
@@ -122,8 +122,10 @@ exports.run = async function run() {
     if (real) {
       await useApi(real);
       await vscode.commands.executeCommand('provenyx.scanDependencies');
-      assert.strictEqual(tree.lastScan.kind, 'in-progress', `real API: ${JSON.stringify(tree.lastScan)}`);
-      console.log(`[provenyx smoke] real API ${real}: scan ${tree.lastScan.scanId} accepted`);
+      const s = tree.lastScan;
+      assert.strictEqual(s.kind, 'complete', `real API: ${JSON.stringify(s)}`);
+      assert.ok(Array.isArray(s.findings), 'real API: findings should load after completion');
+      console.log(`[provenyx smoke] real API ${real}: scan ${s.scan.scan_id} complete, ${s.scan.summary?.packages} packages, ${s.findings.length} findings`);
     }
   } finally {
     vscode.window.showInformationMessage = originalInfo;

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { FindingsResponse, HealthResponse, Scan, ScanAccepted, ScanRequest } from '../types';
+import type { Finding, HealthResponse, Scan, ScanAccepted, ScanRequest } from '../types';
 
 const HEALTH_TIMEOUT_MS = 5_000;
 const READ_TIMEOUT_MS = 15_000;
@@ -77,8 +77,6 @@ export function getScan(scanId: string): Promise<Scan | undefined> {
   return optional(request<Scan>(`/api/scans/${encodeURIComponent(scanId)}`, { method: 'GET' }, READ_TIMEOUT_MS));
 }
 
-export function getFindings(scanId: string): Promise<FindingsResponse | undefined> {
-  return optional(
-    request<FindingsResponse>(`/api/scans/${encodeURIComponent(scanId)}/findings`, { method: 'GET' }, READ_TIMEOUT_MS),
-  );
+export function getFindings(scanId: string): Promise<Finding[] | undefined> {
+  return optional(request<Finding[]>(`/api/scans/${encodeURIComponent(scanId)}/findings`, { method: 'GET' }, READ_TIMEOUT_MS));
 }

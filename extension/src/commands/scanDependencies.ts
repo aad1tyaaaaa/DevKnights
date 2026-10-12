@@ -100,7 +100,7 @@ async function followScan(tree: FindingsTreeProvider, scanId: string): Promise<v
     if (scan.status === 'complete') {
       let findings: Finding[] | undefined;
       try {
-        findings = (await getFindings(scanId))?.findings;
+        findings = await getFindings(scanId);
       } catch {
         findings = undefined;
       }

@@ -16,7 +16,7 @@ Sends and returns no project data. The extension calls it on activation and befo
 
 ## `POST /api/scans`
 
-Submit an npm lockfile. **Phase 1 validates and acknowledges only — no analysis is performed and nothing is stored.**
+Submit an npm lockfile. The API validates it, stores a local snapshot (SQLite), and starts dependency analysis in a background task. Poll `GET /api/scans/{scan_id}` for progress.
 
 Request headers: `Content-Type: application/json` (otherwise `415`).
 
@@ -47,7 +47,7 @@ No other top-level fields are accepted.
 {
   "scan_id": "3f1c9a52-6a77-4a8e-9d4e-1c0b2f6f9e10",
   "status": "accepted",
-  "message": "Lockfile received. Dependency analysis is not implemented in Phase 1."
+  "message": "Lockfile received. Dependency analysis has started."
 }
 ```
 
@@ -63,78 +63,91 @@ No other top-level fields are accepted.
 
 Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`), methods `GET`/`POST`, header `Content-Type`. The extension runs in Node and is not subject to CORS.
 
-## Planned endpoints (owner: Omkar) — agreed shapes
+## Scan results (implemented — Phases 3–4, owner: Omkar)
 
-Not implemented yet. The extension (Phase 2) and dashboard (Phase 5) already call these and handle `404`/`405`/`501` as "not available from this API yet", so the backend can ship them one at a time. All are `GET` except verify.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/scans` | Recent persisted scans, newest first — a JSON **array** of Scan |
+| `GET /api/scans/{scan_id}` | Status and summary |
+| `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges |
+| `GET /api/scans/{scan_id}/findings` | Evidence-backed findings — a JSON **array** of Finding |
+| `GET /api/scans/{scan_id}/compare/{baseline_scan_id}` | Additions, removals, upgrades, and new edges between two scans |
+| `POST /api/releases/verify` | Release-record verification — **Phase 6, not implemented yet** |
 
-| Endpoint | Purpose | Phase |
-| --- | --- | --- |
-| `GET /api/scans` | Recent scans, newest first (max 50) | 3 |
-| `GET /api/scans/{scan_id}` | Status and summary | 3 |
-| `GET /api/scans/{scan_id}/graph` | Dependency nodes and edges | 3 |
-| `GET /api/scans/{scan_id}/findings` | Evidence-backed findings | 4 |
-| `POST /api/releases/verify` | Compare release metadata with the on-chain manifest hash | 6 |
+Unknown `scan_id` → `404 { "detail": "Scan not found" }`. Clients treat `404`/`405`/`501` on these routes as "not available" rather than as an empty result.
 
-Unknown `scan_id` → `404 { "detail": "Scan not found" }`.
-
-### Scan — `GET /api/scans/{scan_id}`; `GET /api/scans` returns `{ "scans": [Scan, ...] }`
+### Scan — `GET /api/scans/{scan_id}`
 
 ```jsonc
 {
   "scan_id": "uuid",
-  "status": "accepted",            // accepted | analyzing | complete | failed
+  "status": "complete",            // accepted | analyzing | complete | failed
   "created_at": "2026-10-12T10:00:00Z",
   "project_name": "my-app",        // or null
-  "error": null,                   // human-readable reason when status = failed
-  "summary": {                     // null until status = complete
-    "packages": 120, "direct": 8, "transitive": 112, "findings": 2
-  }
+  "summary": { "packages": 120, "direct": 8, "transitive": 112, "findings": 2 },   // null until complete
+  "warnings": ["Could not resolve 'x' declared by y@1.0.0"],   // things the analysis could not determine
+  "error": null                    // reason when status = failed
 }
 ```
 
 ### Graph — `GET /api/scans/{scan_id}/graph`
 
-Node `id` is `name@version`, so multiple installed versions stay distinct.
+Node `id` is `name@version`, so multiple installed versions stay distinct. **The project itself is not a node**; findings refer to it as `"root"`, and the UI draws it with edges to every `direct` node.
 
 ```jsonc
 {
   "scan_id": "uuid",
-  "root": "my-app@1.0.0",
+  "status": "complete",
   "nodes": [
-    { "id": "ms@2.1.3", "name": "ms", "version": "2.1.3",
-      "direct": true, "dev": false, "lockfile_paths": ["node_modules/ms"] }
+    { "id": "ms@2.1.3", "name": "ms", "version": "2.1.3", "direct": true,
+      "lockfile_paths": ["node_modules/ms"],
+      "resolved_urls": ["https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"],
+      "lockfile_integrities": ["sha512-…"],
+      "registry": { "status": "available", "description": "…", "license": "MIT", "deprecated": null,
+                    "published_at": "2021-…", "dist_integrity": "sha512-…", "error": null } }
   ],
-  "edges": [ { "from": "my-app@1.0.0", "to": "ms@2.1.3", "type": "prod" } ]   // prod | dev | optional | peer
+  "edges": [ { "from": "a@1.0.0", "to": "ms@2.1.3", "type": "prod" } ],   // prod | dev | optional | peer
+  "warnings": []
 }
 ```
+
+`registry.status = "unavailable"` means npm metadata could not be fetched; every field is then unknown, never guessed.
 
 ### Findings — `GET /api/scans/{scan_id}/findings`
 
-Every finding carries evidence; no evidence, no finding. `severity` and `confidence` are independent.
+Every finding carries at least one piece of evidence. `severity`, `confidence`, and `priority_score` are independent; the list is sorted by `priority_score` (highest first).
 
 ```jsonc
-{
-  "scan_id": "uuid",
-  "findings": [
-    {
-      "id": "uuid",
-      "rule_id": "new-dependency",
-      "package": "example-pkg", "version": "1.2.0",
-      "severity": "medium",          // info | low | medium | high
-      "confidence": "high",          // low | medium | high
-      "title": "Short, factual headline",
-      "explanation": "Why this was flagged and what to check.",
-      "evidence": [
-        { "source": "lockfile", "field": "packages.node_modules/example-pkg.version", "value": "1.2.0", "observed_at": null }
-      ],                              // source: lockfile | npm-registry | release-registry
-      "unknowns": ["Publisher history unavailable"],
-      "paths": [["my-app@1.0.0", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // root → package, node ids from the graph
-    }
-  ]
-}
+[
+  {
+    "id": "…",
+    "rule_id": "new-dependency",
+    "package": "example-pkg", "version": "1.2.0",
+    "severity": "medium",          // info | low | medium | high
+    "confidence": "high",          // low | medium | high
+    "priority_score": 55,          // 0–100, deterministic
+    "title": "Short, factual headline",
+    "explanation": "Why this was flagged and what to check.",
+    "evidence": [
+      { "source": "lockfile", "field": "…", "value": "1.2.0", "observed_at": "2026-10-12T10:00:00Z" }
+    ],                              // source: lockfile | npm-registry | registry-contract
+    "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // "root" = the project, then graph node ids
+  }
+]
 ```
 
-### Release verification — `POST /api/releases/verify`
+### Comparison — `GET /api/scans/{scan_id}/compare/{baseline_scan_id}`
+
+```jsonc
+{ "baseline_scan_id": "uuid", "current_scan_id": "uuid",
+  "added_packages": ["name@version"], "removed_packages": ["name@version"],
+  "version_changes": [ { "name": "name", "from_versions": ["1.0.0"], "to_versions": ["2.0.0"] } ],
+  "added_edges": [ { "from": "parent@version", "to": "child@version", "type": "prod" } ] }
+```
+
+`409` when either scan is not complete.
+
+### Release verification — `POST /api/releases/verify` (Phase 6, agreed shape, not implemented yet)
 
 Request: `{ "package": "ms", "version": "2.1.3" }`
 

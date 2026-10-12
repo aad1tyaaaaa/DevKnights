@@ -6,7 +6,7 @@ import { ScanList, useScans } from '@/components/scan-list'
 /** Metrics are computed only from scans the API returns; nothing is shown when there is no data. */
 export function DashboardOverview() {
   const [result] = useScans()
-  const scans = result.state === 'ok' ? result.data.scans : []
+  const scans = result.state === 'ok' ? result.data : []
   const latest = scans.find((s) => s.status === 'complete' && s.summary)
 
   return (

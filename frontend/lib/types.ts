@@ -24,6 +24,7 @@ export interface Scan {
   project_name: string | null
   error: string | null
   summary: ScanSummary | null
+  warnings?: string[]
 }
 
 export interface Evidence {
@@ -40,11 +41,24 @@ export interface Finding {
   version: string
   severity: Severity
   confidence: Confidence
+  /** 0-100, deterministic investigation priority (higher first). */
+  priority_score: number
   title: string
   explanation: string
   evidence: Evidence[]
-  unknowns: string[]
+  unknowns?: string[]
+  /** Each path starts with the literal "root" (the scanned project), then node ids "name@version". */
   paths: string[][]
+}
+
+export interface RegistryMetadata {
+  status: 'available' | 'unavailable'
+  description: string | null
+  license: string | null
+  deprecated: string | null
+  published_at: string | null
+  dist_integrity: string | null
+  error: string | null
 }
 
 export interface GraphNode {
@@ -52,8 +66,11 @@ export interface GraphNode {
   name: string
   version: string
   direct: boolean
-  dev: boolean
+  dev?: boolean
   lockfile_paths: string[]
+  resolved_urls?: string[]
+  lockfile_integrities?: string[]
+  registry?: RegistryMetadata
 }
 
 export interface GraphEdge {
@@ -62,12 +79,16 @@ export interface GraphEdge {
   type: 'prod' | 'dev' | 'optional' | 'peer'
 }
 
+/** The project itself is not a node; findings refer to it as "root" (see ROOT_ID). */
 export interface DependencyGraphData {
   scan_id: string
-  root: string
+  status?: ScanStatus
   nodes: GraphNode[]
   edges: GraphEdge[]
+  warnings?: string[]
 }
+
+export const ROOT_ID = 'root'
 
 export type VerificationStatusKind = 'match' | 'mismatch' | 'no_record' | 'unavailable'
 

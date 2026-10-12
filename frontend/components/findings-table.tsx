@@ -12,7 +12,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
     () =>
       findings
         .filter((f) => filter === 'all' || f.severity === filter)
-        .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)),
+        .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || b.priority_score - a.priority_score),
     [findings, filter],
   )
 
@@ -55,6 +55,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
                 <td className="px-5 py-4">
                   <SeverityBadge severity={f.severity} />
                   <div className="mt-1"><ConfidenceLabel confidence={f.confidence} /></div>
+                  <div className="text-xs tabular-nums text-ink-muted">Priority {f.priority_score}/100</div>
                 </td>
                 <td className="px-5 py-4">
                   <p className="text-ink">{f.title}</p>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Core, ElementDefinition } from 'cytoscape'
 import { Maximize, Minus, Plus } from 'lucide-react'
-import type { DependencyGraphData, Severity } from '@/lib/types'
+import { ROOT_ID, type DependencyGraphData, type Severity } from '@/lib/types'
 
 // ponytail: above this size only the root, direct dependencies and flagged/path packages are drawn;
 // a dedicated "explore neighbours" mode can come later if users need the full graph.
@@ -13,6 +13,8 @@ const SEVERITY_COLOR: Record<Severity, string> = { high: '#b74232', medium: '#d0
 
 interface Props {
   graph: DependencyGraphData
+  /** Label for the project node (the API refers to it as "root"). */
+  rootLabel: string
   flagged: Map<string, Severity>
   /** Node ids that must stay visible in large graphs (e.g. nodes on finding paths). */
   keep: Set<string>
@@ -21,47 +23,47 @@ interface Props {
   onSelectNode: (id: string) => void
 }
 
-function buildElements(graph: DependencyGraphData, flagged: Map<string, Severity>, keep: Set<string>) {
+function buildElements(graph: DependencyGraphData, rootLabel: string, flagged: Map<string, Severity>, keep: Set<string>) {
   let nodes = graph.nodes
   if (nodes.length > MAX_FULL_GRAPH) {
-    nodes = nodes.filter((n) => n.id === graph.root || n.direct || flagged.has(n.id) || keep.has(n.id))
+    nodes = nodes.filter((n) => n.direct || flagged.has(n.id) || keep.has(n.id))
   }
   const ids = new Set(nodes.map((n) => n.id))
-  ids.add(graph.root)
 
-  const elements: ElementDefinition[] = []
-  if (!graph.nodes.some((n) => n.id === graph.root)) {
-    elements.push({ data: { id: graph.root, label: graph.root, kind: 'root' } })
-  }
+  // The API does not return the project as a node; draw it and connect it to the direct dependencies.
+  const elements: ElementDefinition[] = [{ data: { id: ROOT_ID, label: rootLabel, kind: 'root' } }]
   for (const n of nodes) {
     const sev = flagged.get(n.id)
     elements.push({
       data: {
         id: n.id,
-        label: `${n.name}\n${n.version}`,
-        kind: n.id === graph.root ? 'root' : sev ? 'flagged' : n.direct ? 'direct' : 'transitive',
+        label: `${n.name}
+${n.version}`,
+        kind: sev ? 'flagged' : n.direct ? 'direct' : 'transitive',
         color: sev ? SEVERITY_COLOR[sev] : undefined,
       },
     })
   }
+  const edges = [...nodes.filter((n) => n.direct).map((n) => ({ from: ROOT_ID, to: n.id, type: 'prod' })), ...graph.edges]
   const seen = new Set<string>()
-  for (const e of graph.edges) {
+  for (const e of edges) {
     const id = `${e.from}->${e.to}`
-    if (!ids.has(e.from) || !ids.has(e.to) || seen.has(id)) continue
+    const known = (x: string) => x === ROOT_ID || ids.has(x)
+    if (!known(e.from) || !known(e.to) || seen.has(id)) continue
     seen.add(id)
     elements.push({ data: { id, source: e.from, target: e.to, type: e.type } })
   }
   return { elements, shown: nodes.length, total: graph.nodes.length }
 }
 
-export function DependencyGraph({ graph, flagged, keep, selectedNode, highlightPaths, onSelectNode }: Props) {
+export function DependencyGraph({ graph, rootLabel, flagged, keep, selectedNode, highlightPaths, onSelectNode }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const onSelect = useRef(onSelectNode)
   onSelect.current = onSelectNode
   const [ready, setReady] = useState(0)
 
-  const view = useMemo(() => buildElements(graph, flagged, keep), [graph, flagged, keep])
+  const view = useMemo(() => buildElements(graph, rootLabel, flagged, keep), [graph, rootLabel, flagged, keep])
 
   useEffect(() => {
     let cy: Core | undefined
@@ -73,7 +75,7 @@ export function DependencyGraph({ graph, flagged, keep, selectedNode, highlightP
         elements: view.elements,
         minZoom: 0.1,
         maxZoom: 3,
-        layout: { name: 'breadthfirst', directed: true, roots: [graph.root], spacingFactor: 1.15, padding: 24 },
+        layout: { name: 'breadthfirst', directed: true, roots: [ROOT_ID], spacingFactor: 1.15, padding: 24 },
         style: [
           {
             selector: 'node',
@@ -102,7 +104,7 @@ export function DependencyGraph({ graph, flagged, keep, selectedNode, highlightP
       cy?.destroy()
       cyRef.current = null
     }
-  }, [view, graph.root])
+  }, [view])
 
   useEffect(() => {
     const cy = cyRef.current

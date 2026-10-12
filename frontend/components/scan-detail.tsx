@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ShieldCheck } from 'lucide-react'
+import { Info, ShieldCheck } from 'lucide-react'
 import { ScanStatusBadge } from '@/components/badges'
 import { DependencyGraph } from '@/components/dependency-graph'
 import { FindingsTable } from '@/components/findings-table'
@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states'
 import { SEVERITY_ORDER } from '@/components/badges'
 import { useApi } from '@/lib/api'
 import { formatDate } from '@/lib/format'
-import type { DependencyGraphData, Finding, Scan, Severity } from '@/lib/types'
+import { ROOT_ID, type DependencyGraphData, type Finding, type Scan, type Severity } from '@/lib/types'
 
 const POLL_MS = 2000
 
@@ -54,8 +54,7 @@ export function ScanDetail({ scanId }: { scanId: string }) {
       <div className="flex flex-col gap-8">
         {header}
         <ErrorState title="This scan isn’t available from the API">
-          Either the scan ID is unknown, or the connected API does not provide scan details yet. Scans submitted to the current backend are
-          acknowledged but not stored until dependency analysis is implemented.
+          The API has no scan with this ID. It may have been submitted to a different backend, or the backend’s scan database was reset.
         </ErrorState>
       </div>
     )
@@ -72,9 +71,9 @@ export function ScanDetail({ scanId }: { scanId: string }) {
 
 function CompleteScan({ scan }: { scan: Scan }) {
   const enc = encodeURIComponent(scan.scan_id)
-  const [findingsR] = useApi<{ findings: Finding[] }>(`/api/scans/${enc}/findings`)
+  const [findingsR] = useApi<Finding[]>(`/api/scans/${enc}/findings`)
   const [graphR] = useApi<DependencyGraphData>(`/api/scans/${enc}/graph`)
-  const findings = findingsR.state === 'ok' ? findingsR.data.findings : null
+  const findings = findingsR.state === 'ok' ? findingsR.data : null
   const graph = graphR.state === 'ok' ? graphR.data : null
 
   const searchParams = useSearchParams()
@@ -108,6 +107,7 @@ function CompleteScan({ scan }: { scan: Scan }) {
   const nodeFindings = useMemo(() => (findings ?? []).filter((f) => `${f.package}@${f.version}` === selectedNode), [findings, selectedNode])
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
+  const warnings = [...new Set([...(scan.warnings ?? []), ...(graph?.warnings ?? [])])]
   const s = scan.summary
   return (
     <>
@@ -117,6 +117,19 @@ function CompleteScan({ scan }: { scan: Scan }) {
         <MetricCard label="Transitive" value={s?.transitive ?? '—'} />
         <MetricCard label="Findings" value={s?.findings ?? '—'} tone={s?.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
       </div>
+
+      {warnings.length > 0 && (
+        <details className="rounded-xl border border-line bg-white p-5 text-sm">
+          <summary className="flex cursor-pointer items-center gap-2 font-semibold text-ink">
+            <Info className="size-4 text-leaf" aria-hidden /> Analysis notes ({warnings.length})
+          </summary>
+          <p className="mt-2 text-xs text-ink-muted">Things the analysis could not determine. Unknown is reported as unknown, never guessed.</p>
+          <ul className="mt-3 list-disc pl-5 text-xs leading-5 text-ink-muted">
+            {warnings.slice(0, 50).map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+          {warnings.length > 50 && <p className="mt-2 text-xs text-ink-muted">and {warnings.length - 50} more</p>}
+        </details>
+      )}
 
       {findingsR.state === 'loading' && <LoadingState label="Loading findings…" />}
       {findingsR.state === 'error' && <ErrorState title="Could not load findings">{findingsR.message}</ErrorState>}
@@ -156,6 +169,7 @@ function CompleteScan({ scan }: { scan: Scan }) {
         {graph && (
           <DependencyGraph
             graph={graph}
+            rootLabel={scan.project_name ?? 'project'}
             flagged={flagged}
             keep={keep}
             selectedNode={selectedNode}
@@ -163,7 +177,7 @@ function CompleteScan({ scan }: { scan: Scan }) {
             onSelectNode={(id) => {
               setSelectedFinding(null)
               setSelectedNode(id)
-              setDrawerOpen(id !== graph.root)
+              setDrawerOpen(id !== ROOT_ID)
             }}
           />
         )}

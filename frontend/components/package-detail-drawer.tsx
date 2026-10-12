@@ -60,6 +60,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               <div className="flex flex-wrap items-center gap-2">
                 <SeverityBadge severity={f.severity} />
                 <ConfidenceLabel confidence={f.confidence} />
+                <span className="text-xs tabular-nums text-ink-muted">Priority {f.priority_score}/100</span>
                 <span className="font-mono text-[11px] text-ink-muted">{f.rule_id}</span>
               </div>
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
@@ -77,11 +78,11 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
                 ))}
               </ul>
 
-              {f.unknowns.length > 0 && (
+              {(f.unknowns?.length ?? 0) > 0 && (
                 <>
                   <h4 className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Unknowns</h4>
                   <ul className="mt-2 list-disc pl-5 text-sm text-ink-muted">
-                    {f.unknowns.map((u) => <li key={u}>{u}</li>)}
+                    {f.unknowns!.map((u) => <li key={u}>{u}</li>)}
                   </ul>
                 </>
               )}
@@ -99,6 +100,23 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               )}
             </section>
           ))
+        )}
+
+        {node?.registry && (
+          <section className="mt-7 border-t border-line pt-6">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">npm registry</h3>
+            {node.registry.status === 'unavailable' ? (
+              <p className="mt-2 text-sm text-ink-muted">Metadata unavailable{node.registry.error ? `: ${node.registry.error}` : ''}. Treated as unknown.</p>
+            ) : (
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+                {node.registry.description && (<><dt className="text-ink-muted">Description</dt><dd className="text-ink">{node.registry.description}</dd></>)}
+                <dt className="text-ink-muted">License</dt><dd className="text-ink">{node.registry.license ?? 'Unknown'}</dd>
+                <dt className="text-ink-muted">Published</dt><dd className="text-ink">{formatDate(node.registry.published_at)}</dd>
+                {node.registry.deprecated && (<><dt className="text-ink-muted">Deprecated</dt><dd className="text-[#a36b0c]">{node.registry.deprecated}</dd></>)}
+                {node.registry.dist_integrity && (<><dt className="text-ink-muted">Integrity</dt><dd className="break-all font-mono text-[11px] text-ink">{node.registry.dist_integrity}</dd></>)}
+              </dl>
+            )}
+          </section>
         )}
 
         {node && node.lockfile_paths.length > 0 && (

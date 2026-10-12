@@ -28,7 +28,7 @@ def test_scan_accepts_valid_lockfile():
     body = r.json()
     assert body["status"] == "accepted"
     assert len(body["scan_id"]) == 36
-    assert "not implemented" in body["message"]
+    assert "analysis has started" in body["message"]
 
 
 def test_scan_rejects_invalid_lockfile():

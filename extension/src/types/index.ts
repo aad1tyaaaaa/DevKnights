@@ -37,6 +37,7 @@ export interface Scan {
   project_name: string | null;
   error: string | null;
   summary: { packages: number; direct: number; transitive: number; findings: number } | null;
+  warnings?: string[];
 }
 
 export type Severity = 'info' | 'low' | 'medium' | 'high';
@@ -48,16 +49,14 @@ export interface Finding {
   version: string;
   severity: Severity;
   confidence: 'low' | 'medium' | 'high';
+  /** 0–100, deterministic investigation priority (higher first). */
+  priority_score: number;
   title: string;
   explanation: string;
   evidence: { source: string; field: string; value: unknown; observed_at: string | null }[];
-  unknowns: string[];
+  unknowns?: string[];
+  /** Each path starts with the literal "root" (the scanned project), then node ids "name@version". */
   paths: string[][];
-}
-
-export interface FindingsResponse {
-  scan_id: string;
-  findings: Finding[];
 }
 
 export type BackendState = 'unknown' | 'connected' | 'unreachable';
