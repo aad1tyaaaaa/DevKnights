@@ -1,5 +1,6 @@
 'use client'
 
+import { CircleAlert, GitBranch, History, Package } from 'lucide-react'
 import { MetricCard } from '@/components/metric-card'
 import { ScanList, useScans } from '@/components/scan-list'
 
@@ -12,11 +13,11 @@ export function DashboardOverview() {
   return (
     <section aria-labelledby="recent-title" className="flex flex-col gap-4">
       {latest?.summary && (
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <MetricCard label="Scans listed" value={scans.length} />
-          <MetricCard label="Packages in latest scan" value={latest.summary.packages} hint={latest.project_name ?? undefined} />
-          <MetricCard label="Direct dependencies" value={latest.summary.direct} hint="Latest completed scan" />
-          <MetricCard label="Findings in latest scan" value={latest.summary.findings} tone={latest.summary.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
+        <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+          <MetricCard label="Scans listed" icon={History} value={scans.length} />
+          <MetricCard label="Packages in latest scan" icon={Package} value={latest.summary.packages} hint={latest.project_name ?? undefined} />
+          <MetricCard label="Direct dependencies" icon={GitBranch} value={latest.summary.direct} hint="Latest completed scan" />
+          <MetricCard label="Findings in latest scan" icon={CircleAlert} value={latest.summary.findings} tone={latest.summary.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
         </div>
       )}
       <h2 id="recent-title" className="font-semibold text-ink">Recent scans</h2>

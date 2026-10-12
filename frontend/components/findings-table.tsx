@@ -17,7 +17,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
   )
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-white">
+    <div className="overflow-hidden rounded-xl border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
         <div>
           <h2 className="font-semibold text-ink">Findings</h2>
@@ -25,7 +25,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
         </div>
         <label className="text-xs text-ink-muted">
           <span className="sr-only">Filter by severity</span>
-          <select value={filter} onChange={(e) => setFilter(e.target.value as Severity | 'all')} className="rounded-md border border-line bg-white px-3 py-2 text-xs text-ink">
+          <select value={filter} onChange={(e) => setFilter(e.target.value as Severity | 'all')} className="rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink">
             <option value="all">All severities</option>
             {SEVERITY_ORDER.map((s) => (
               <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
@@ -36,7 +36,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
       <div className="relative overflow-x-auto">
         <table className="w-full min-w-[680px] text-left text-sm">
           <caption className="sr-only">Findings</caption>
-          <thead className="bg-[#fbfdfb] text-[10px] uppercase tracking-wider text-ink-muted">
+          <thead className="bg-ink/5 text-[10px] uppercase tracking-wider text-ink-muted">
             <tr>
               <th scope="col" className="px-5 py-3 font-semibold">Package</th>
               <th scope="col" className="px-5 py-3 font-semibold">Severity</th>
@@ -47,7 +47,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
           </thead>
           <tbody className="divide-y divide-line">
             {rows.map((f) => (
-              <tr key={f.id} className={cn('cursor-pointer transition-colors hover:bg-[#f8fbf8]', selectedId === f.id && 'bg-mint-soft/60')} onClick={() => onSelect(f)}>
+              <tr key={f.id} className={cn('cursor-pointer transition-colors hover:bg-ink/5', selectedId === f.id && 'bg-mint-soft/60')} onClick={() => onSelect(f)}>
                 <td className="px-5 py-4">
                   <p className="font-semibold text-ink">{f.package}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">v{f.version}</p>
@@ -66,7 +66,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
                 </td>
                 <td className="px-5 py-4 tabular-nums text-ink-muted">{f.paths.length}</td>
                 <td className="px-5 py-4">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onSelect(f) }} className="rounded-md p-1 text-ink-muted hover:bg-surface hover:text-ink" aria-label={`Investigate ${f.package}@${f.version}: ${f.title}`}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onSelect(f) }} className="rounded-md p-1 text-ink-muted hover:bg-ink/10 hover:text-ink" aria-label={`Investigate ${f.package}@${f.version}: ${f.title}`}>
                     <ChevronRight className="size-4" aria-hidden />
                   </button>
                 </td>

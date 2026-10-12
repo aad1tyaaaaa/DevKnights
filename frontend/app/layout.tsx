@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import './theme-switch.css'
+import { ThemeToggleFilters, themeInitScript } from '@/components/theme-toggle'
 
 export const metadata: Metadata = {
   title: { default: 'Provenyx Security', template: '%s · Provenyx' },
@@ -14,14 +16,26 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
-  themeColor: '#f6faf7',
+  colorScheme: 'dark light',
+  themeColor: '#000000',
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">{children}</body>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap"
+        />
+      </head>
+      <body className="antialiased">
+        <ThemeToggleFilters />
+        {children}
+      </body>
     </html>
   )
 }

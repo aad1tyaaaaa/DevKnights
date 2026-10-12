@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Info, ShieldCheck } from 'lucide-react'
+import { CircleAlert, GitBranch, Info, Network, Package, ShieldCheck } from 'lucide-react'
 import { ScanStatusBadge } from '@/components/badges'
 import { DependencyGraph } from '@/components/dependency-graph'
 import { FindingsTable } from '@/components/findings-table'
@@ -18,6 +18,8 @@ import { formatDate } from '@/lib/format'
 import { ROOT_ID, type DependencyGraphData, type Finding, type Scan, type Severity } from '@/lib/types'
 
 const POLL_MS = 2000
+
+const pct = (n: number, total: number) => `${Math.round((n / total) * 100)}%`
 
 export function ScanDetail({ scanId }: { scanId: string }) {
   const enc = encodeURIComponent(scanId)
@@ -111,15 +113,15 @@ function CompleteScan({ scan }: { scan: Scan }) {
   const s = scan.summary
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <MetricCard label="Packages" value={s?.packages ?? '—'} />
-        <MetricCard label="Direct" value={s?.direct ?? '—'} />
-        <MetricCard label="Transitive" value={s?.transitive ?? '—'} />
-        <MetricCard label="Findings" value={s?.findings ?? '—'} tone={s?.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
+      <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+        <MetricCard label="Packages" value={s?.packages ?? '—'} icon={Package} hint="Resolved from the lockfile" />
+        <MetricCard label="Direct" value={s?.direct ?? '—'} icon={GitBranch} share={s?.packages ? s.direct / s.packages : undefined} hint={s?.packages ? `${pct(s.direct, s.packages)} of packages` : undefined} />
+        <MetricCard label="Transitive" value={s?.transitive ?? '—'} icon={Network} share={s?.packages ? s.transitive / s.packages : undefined} hint={s?.packages ? `${pct(s.transitive, s.packages)} of packages` : undefined} />
+        <MetricCard label="Findings" value={s?.findings ?? '—'} icon={CircleAlert} tone={s?.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
       </div>
 
       {warnings.length > 0 && (
-        <details className="rounded-xl border border-line bg-white p-5 text-sm">
+        <details className="rounded-xl border border-line bg-panel p-5 text-sm">
           <summary className="flex cursor-pointer items-center gap-2 font-semibold text-ink">
             <Info className="size-4 text-leaf" aria-hidden /> Analysis notes ({warnings.length})
           </summary>
@@ -151,7 +153,7 @@ function CompleteScan({ scan }: { scan: Scan }) {
         />
       )}
 
-      <section className="rounded-xl border border-line bg-white p-5" aria-labelledby="graph-title">
+      <section className="rounded-xl border border-line bg-panel p-5" aria-labelledby="graph-title">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="graph-title" className="font-semibold text-ink">Dependency graph</h2>

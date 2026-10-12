@@ -37,11 +37,11 @@ export function ScanList({ result, limit }: { result: Result<Scan[]>; limit?: nu
     )
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-white">
+    <div className="overflow-hidden rounded-xl border border-line bg-panel">
       <div className="relative overflow-x-auto">
         <table className="w-full min-w-[600px] text-left text-sm">
           <caption className="sr-only">Scans</caption>
-          <thead className="bg-[#fbfdfb] text-[10px] uppercase tracking-wider text-ink-muted">
+          <thead className="bg-ink/5 text-[10px] uppercase tracking-wider text-ink-muted">
             <tr>
               <th scope="col" className="px-5 py-3 font-semibold">Project</th>
               <th scope="col" className="px-5 py-3 font-semibold">Status</th>
@@ -53,7 +53,7 @@ export function ScanList({ result, limit }: { result: Result<Scan[]>; limit?: nu
           </thead>
           <tbody className="divide-y divide-line">
             {scans.map((s) => (
-              <tr key={s.scan_id} className="transition-colors hover:bg-[#f8fbf8]">
+              <tr key={s.scan_id} className="transition-colors hover:bg-ink/5">
                 <td className="px-5 py-4">
                   <Link href={`/scans/${s.scan_id}`} className="font-semibold text-ink hover:underline focus-visible:outline-2 focus-visible:outline-leaf">
                     {s.project_name ?? 'Unnamed project'}

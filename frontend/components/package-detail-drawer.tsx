@@ -31,17 +31,17 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-30 flex justify-end bg-[#173b2e]/20" onClick={onClose}>
+    <div className="fixed inset-0 z-30 flex justify-end bg-black/60" onClick={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
-        className="h-full w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl sm:p-7"
+        className="h-full w-full max-w-lg overflow-y-auto bg-panel p-6 shadow-2xl sm:p-7"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-ink-muted">Package investigation</p>
-          <button ref={closeRef} type="button" onClick={onClose} className="rounded-md p-1.5 text-ink-muted hover:bg-surface hover:text-ink" aria-label="Close">
+          <button ref={closeRef} type="button" onClick={onClose} className="rounded-md p-1.5 text-ink-muted hover:bg-ink/10 hover:text-ink" aria-label="Close">
             <X className="size-5" aria-hidden />
           </button>
         </div>
@@ -66,10 +66,10 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
                 <span className="font-mono text-[11px] text-ink-muted">{f.rule_id}</span>
               </div>
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-[#4f6e5d]">{f.explanation}</p>
+              <p className="mt-2 text-sm leading-6 text-ink/70">{f.explanation}</p>
 
               {f.ranking_source === 'gemini' && f.ai_priority_score != null && (
-                <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-[#365b48]">
+                <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-ink/70">
                   <p className="font-semibold text-ink">Gemini ranking · {f.ai_priority_score}/100</p>
                   <p className="mt-1">Deterministic rule score: {f.priority_score}/100</p>
                   {f.ai_rationale && <p className="mt-2 leading-5">{f.ai_rationale}</p>}
@@ -102,7 +102,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
                   <h4 className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Dependency paths ({f.paths.length})</h4>
                   <ul className="mt-2 flex flex-col gap-2">
                     {f.paths.slice(0, 10).map((p, i) => (
-                      <li key={i} className="break-words rounded-lg bg-mint-soft/60 px-3 py-2 text-xs text-[#365b48]">{p.join('  →  ')}</li>
+                      <li key={i} className="break-words rounded-lg bg-mint-soft/60 px-3 py-2 text-xs text-ink/70">{p.join('  →  ')}</li>
                     ))}
                   </ul>
                   {f.paths.length > 10 && <p className="mt-1 text-xs text-ink-muted">and {f.paths.length - 10} more</p>}
@@ -123,7 +123,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
                 <dt className="text-ink-muted">Publisher</dt><dd className="text-ink">{node.registry.publisher ?? 'Unknown'}</dd>
                 <dt className="text-ink-muted">License</dt><dd className="text-ink">{node.registry.license ?? 'Unknown'}</dd>
                 {node.registry.published_at && (<><dt className="text-ink-muted">Published</dt><dd className="text-ink">{formatDate(node.registry.published_at)}</dd></>)}
-                {node.registry.deprecated && (<><dt className="text-ink-muted">Deprecated</dt><dd className="text-[#a36b0c]">{node.registry.deprecated}</dd></>)}
+                {node.registry.deprecated && (<><dt className="text-ink-muted">Deprecated</dt><dd className="text-warn">{node.registry.deprecated}</dd></>)}
                 {node.registry.dist_integrity && (<><dt className="text-ink-muted">Integrity</dt><dd className="break-all font-mono text-[11px] text-ink">{node.registry.dist_integrity}</dd></>)}
               </dl>
             )}

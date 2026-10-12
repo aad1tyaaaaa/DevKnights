@@ -6,7 +6,7 @@ import { FilePlus2, GitFork, History, LayoutDashboard, Settings } from 'lucide-r
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 
-const NAV = [
+export const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/github', label: 'GitHub projects', icon: GitFork },
   { href: '/scan/new', label: 'New scan', icon: FilePlus2 },
@@ -42,19 +42,16 @@ function NavLinks({ horizontal = false }: { horizontal?: boolean }) {
 export function AppSidebar() {
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar p-5 md:flex">
-        <Link href="/" aria-label="Provenyx home">
-          <Logo light />
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-5 md:flex">
+        <Link href="/" aria-label="Provenyx home" className="self-center pt-2">
+          <Logo light stacked />
         </Link>
         <p className="mt-10 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">Workspace</p>
         <div className="mt-3">
           <NavLinks />
         </div>
-        <p className="mt-auto border-t border-sidebar-border pt-4 text-[11px] leading-5 text-sidebar-foreground/55">
-          Local development · v0.1.0
-        </p>
       </aside>
-      <header className="flex flex-col gap-3 bg-sidebar px-4 py-3 md:hidden">
+      <header className="flex flex-col gap-3 border-b border-sidebar-border bg-sidebar px-4 py-3 md:hidden">
         <Link href="/" aria-label="Provenyx home">
           <Logo light />
         </Link>

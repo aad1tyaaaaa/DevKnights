@@ -11,7 +11,7 @@ const STEPS: { key: ScanStatus; label: string }[] = [
 export function ScanProgress({ status }: { status: ScanStatus }) {
   const current = STEPS.findIndex((s) => s.key === status)
   return (
-    <div className="rounded-xl border border-line bg-white p-6" role="status" aria-live="polite">
+    <div className="rounded-xl border border-line bg-panel p-6" role="status" aria-live="polite">
       <ol className="flex flex-col gap-4 sm:flex-row sm:gap-8">
         {STEPS.map((s, i) => {
           const done = i < current
@@ -21,7 +21,7 @@ export function ScanProgress({ status }: { status: ScanStatus }) {
               <span
                 className={cn(
                   'grid size-7 place-items-center rounded-full border text-xs font-semibold',
-                  done && 'border-leaf bg-leaf text-white',
+                  done && 'border-brand bg-brand text-white',
                   active && 'border-leaf text-leaf',
                   !done && !active && 'border-line text-ink-muted',
                 )}

@@ -50,7 +50,7 @@ export function ScanDropzone() {
 
   if (submit.state === 'done')
     return (
-      <section className="rounded-xl border border-line bg-white p-6" aria-live="polite">
+      <section className="rounded-xl border border-line bg-panel p-6" aria-live="polite">
         <div className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-mint-soft text-leaf"><Check className="size-5" aria-hidden /></span>
           <div className="min-w-0">
@@ -69,7 +69,7 @@ export function ScanDropzone() {
     )
 
   return (
-    <section className="rounded-xl border border-line bg-white p-6 sm:p-8">
+    <section className="rounded-xl border border-line bg-panel p-6 sm:p-8">
       <div className="flex items-start gap-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-mint-soft text-leaf"><Upload className="size-5" aria-hidden /></span>
         <div>
@@ -85,26 +85,26 @@ export function ScanDropzone() {
         onDrop={(e) => { e.preventDefault(); setDragging(false); void choose(e.dataTransfer.files[0]) }}
         className={cn(
           'mt-6 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center transition focus-within:outline-2 focus-within:outline-leaf',
-          dragging ? 'border-leaf bg-[#f1faf2]' : 'border-[#bad5c0] bg-[#f8fcf8] hover:border-leaf hover:bg-[#f1faf2]',
+          dragging ? 'border-leaf bg-ink/5' : 'border-ink/20 bg-ink/5 hover:border-leaf hover:bg-ink/5',
         )}
       >
         <input id={inputId} className="sr-only" type="file" accept="application/json,.json" onChange={(e) => void choose(e.target.files?.[0])} />
         <FileCode2 className="size-6 text-leaf" aria-hidden />
-        <span className="mt-3 text-sm font-semibold text-[#365b48]">Drop a package-lock.json here, or choose a file</span>
+        <span className="mt-3 text-sm font-semibold text-ink/70">Drop a package-lock.json here, or choose a file</span>
         <span className="mt-1 text-xs text-ink-muted">JSON, up to 10 MB</span>
       </label>
 
       {fileError && <div className="mt-4"><ErrorState title="This file can't be scanned">{fileError}</ErrorState></div>}
 
       {file && (
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-[#f1faf2] px-4 py-3 text-sm">
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-ink/5 px-4 py-3 text-sm">
           <div className="min-w-0">
-            <p className="truncate font-semibold text-[#287246]">{file.name}</p>
+            <p className="truncate font-semibold text-ok">{file.name}</p>
             <p className="text-xs text-ink-muted">
               {formatBytes(file.size)} · lockfileVersion {file.lock.data.lockfileVersion} · {file.lock.packageCount} package entries
             </p>
           </div>
-          <button type="button" onClick={() => { setFile(null); setConsent(false) }} className="rounded-md p-1.5 text-ink-muted hover:bg-white hover:text-ink" aria-label="Remove file">
+          <button type="button" onClick={() => { setFile(null); setConsent(false) }} className="rounded-md p-1.5 text-ink-muted hover:bg-ink/10 hover:text-ink" aria-label="Remove file">
             <X className="size-4" aria-hidden />
           </button>
         </div>
@@ -112,7 +112,7 @@ export function ScanDropzone() {
 
       <div className="mt-6 border-t border-line pt-6">
         <label className="flex items-start gap-3 text-sm text-ink">
-          <input type="checkbox" checked={consent} disabled={!file} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 accent-[#173d30]" />
+          <input type="checkbox" checked={consent} disabled={!file} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 accent-[#a8325f]" />
           <span>
             Send this lockfile to <code className="rounded bg-surface px-1.5 py-0.5 text-[13px]">{API_BASE_URL}</code> for analysis.
             <span className="block text-xs text-ink-muted">Only the lockfile is sent. Provenyx never installs or runs packages.</span>

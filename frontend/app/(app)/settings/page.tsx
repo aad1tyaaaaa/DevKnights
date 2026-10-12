@@ -29,7 +29,7 @@ export default function SettingsPage() {
         <BackendStatus />
       </section>
 
-      <section id="extension" aria-labelledby="extension-title" className="scroll-mt-8 rounded-xl border border-line bg-white p-6">
+      <section id="extension" aria-labelledby="extension-title" className="scroll-mt-8 rounded-xl border border-line bg-panel p-6">
         <h2 id="extension-title" className="font-semibold text-ink">VS Code extension setup</h2>
         <ol className="mt-4 flex list-decimal flex-col gap-2 pl-5 text-sm leading-6 text-ink">
           <li>

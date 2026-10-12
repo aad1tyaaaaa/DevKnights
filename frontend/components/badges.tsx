@@ -2,10 +2,10 @@ import type { Confidence, ScanStatus, Severity } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const SEVERITY_STYLE: Record<Severity, string> = {
-  high: 'bg-[#fff0ed] text-[#b74232]',
-  medium: 'bg-[#fff7df] text-[#a36b0c]',
-  low: 'bg-[#eef4fb] text-[#3b6390]',
-  info: 'bg-[#f1f4f2] text-[#5f7268]',
+  high: 'bg-[#ff6b57]/15 text-danger',
+  medium: 'bg-[#f5b942]/15 text-warn',
+  low: 'bg-[#6ea8ff]/15 text-note',
+  info: 'bg-ink/10 text-ink/70',
 }
 
 export const SEVERITY_ORDER: Severity[] = ['high', 'medium', 'low', 'info']
@@ -24,10 +24,10 @@ export function ConfidenceLabel({ confidence }: { confidence: Confidence }) {
 }
 
 const STATUS_STYLE: Record<ScanStatus, string> = {
-  accepted: 'bg-[#f1f4f2] text-[#5f7268]',
-  analyzing: 'bg-[#eef4fb] text-[#3b6390]',
-  complete: 'bg-mint-soft text-[#287246]',
-  failed: 'bg-[#fff0ed] text-[#b74232]',
+  accepted: 'bg-ink/10 text-ink/70',
+  analyzing: 'bg-[#6ea8ff]/15 text-note',
+  complete: 'bg-mint-soft text-ok',
+  failed: 'bg-[#ff6b57]/15 text-danger',
 }
 
 export function ScanStatusBadge({ status }: { status: ScanStatus }) {

@@ -22,7 +22,7 @@ export function PageHeader({
 }
 
 export const primaryButton =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-forest px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#225b3c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'
 
 export const secondaryButton =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm font-semibold text-ink transition hover:bg-ink/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:cursor-not-allowed disabled:opacity-40'

@@ -25,9 +25,9 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-xl border border-line bg-white p-6" aria-labelledby="onboarding-title">
+        <section className="rounded-xl border border-line bg-panel p-6" aria-labelledby="onboarding-title">
           <div className="flex items-start gap-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-forest text-mint">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-white">
               <Code2 className="size-5" aria-hidden />
             </span>
             <div>

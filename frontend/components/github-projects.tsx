@@ -98,7 +98,7 @@ export function GitHubProjects() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 rounded-lg border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-lg border border-line bg-panel p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           {auth.data.avatar_url && <img src={auth.data.avatar_url} alt="" className="size-9 rounded-full" />}
           <div className="min-w-0">
@@ -120,7 +120,7 @@ export function GitHubProjects() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search repositories"
-          className="h-11 w-full rounded-lg border border-line bg-white pl-10 pr-4 text-sm text-ink outline-none placeholder:text-ink-muted focus:border-leaf focus:ring-2 focus:ring-mint"
+          className="h-11 w-full rounded-lg border border-line bg-panel pl-10 pr-4 text-sm text-ink outline-none placeholder:text-ink-muted focus:border-leaf focus:ring-2 focus:ring-[#a8325f]/30"
         />
       </label>
 
@@ -129,7 +129,7 @@ export function GitHubProjects() {
       {visible.length === 0 ? (
         <EmptyState icon={<Search className="size-5" aria-hidden />} title="No matching repositories">Try a different repository name.</EmptyState>
       ) : (
-        <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-white">
+        <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-panel">
           {visible.map((repository) => {
             const open = discovery?.repository === repository.full_name
             return (
@@ -151,7 +151,7 @@ export function GitHubProjects() {
                   </button>
                 </div>
 
-                {open && discovery.state === 'error' && <p className="mt-4 text-sm text-[#a33c2e]">{discovery.message}</p>}
+                {open && discovery.state === 'error' && <p className="mt-4 text-sm text-danger">{discovery.message}</p>}
                 {open && discovery.state === 'ok' && discovery.paths.length === 0 && (
                   <p className="mt-4 text-sm text-ink-muted">No package-lock.json was found on {repository.default_branch}.</p>
                 )}

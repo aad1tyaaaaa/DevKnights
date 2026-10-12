@@ -13,25 +13,25 @@ const COPY: Record<VerificationStatusKind, { title: string; body: string; icon: 
     title: 'Matches the approved record',
     body: 'This release’s metadata equals the manifest that was approved and anchored. This confirms integrity of the record. It is not a verdict that the package is safe.',
     icon: CircleCheck,
-    tone: 'border-[#cfe4d3] bg-mint-soft/60 text-[#287246]',
+    tone: 'border-ink/20 bg-mint-soft/60 text-ok',
   },
   mismatch: {
     title: 'Differs from the approved record',
     body: 'The current metadata does not match the anchored manifest. Compare the details below and investigate before trusting this release.',
     icon: TriangleAlert,
-    tone: 'border-[#f0e4c9] bg-[#fffbf0] text-[#a36b0c]',
+    tone: 'border-[#f5b942]/30 bg-[#f5b942]/15 text-warn',
   },
   no_record: {
     title: 'No approved record',
     body: 'Nobody has anchored a manifest for this release. This is an evidence gap, not a risk signal. Most packages have no record.',
     icon: CircleSlash,
-    tone: 'border-line bg-surface text-[#5f7268]',
+    tone: 'border-line bg-surface text-ink/70',
   },
   unavailable: {
     title: 'Verification unavailable',
     body: 'The release registry or package metadata could not be reached, so nothing can be concluded.',
     icon: CircleHelp,
-    tone: 'border-line bg-surface text-[#5f7268]',
+    tone: 'border-line bg-surface text-ink/70',
   },
 }
 
@@ -58,7 +58,7 @@ export function VerificationStatus({ pkg, version }: { pkg: string; version: str
       <div className="mt-3" aria-live="polite">
         {!result && <p className="text-sm text-ink-muted">Compare this release’s metadata with the blockchain-anchored manifest, if one exists.</p>}
         {result?.state === 'unavailable' && <p className="text-sm text-ink-muted">Release verification is not available from the connected API yet.</p>}
-        {result?.state === 'error' && <p className="text-sm text-[#8a4b41]">{result.message}</p>}
+        {result?.state === 'error' && <p className="text-sm text-danger-soft">{result.message}</p>}
         {result?.state === 'ok' && <VerificationDetails v={result.data} />}
       </div>
     </section>
@@ -88,7 +88,7 @@ export function VerificationDetails({ v }: { v: VerificationResult }) {
         />
       </dl>
       {v.registry?.network === 'hardhat-local' && (
-        <p className="rounded-md bg-[#fff7df] px-3 py-2 text-[11px] text-[#7a5a14]">
+        <p className="rounded-md bg-[#f5b942]/15 px-3 py-2 text-[11px] text-warn">
           Local development chain: records exist only on this machine and were anchored by the local registry owner.
         </p>
       )}

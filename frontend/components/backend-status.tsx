@@ -26,12 +26,12 @@ export function BackendStatus({ className }: { className?: string }) {
   }, [check])
 
   return (
-    <div className={cn('rounded-xl border border-line bg-white p-5', className)} aria-live="polite">
+    <div className={cn('rounded-xl border border-line bg-panel p-5', className)} aria-live="polite">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           {state.kind === 'loading' && <LoaderCircle className="mt-0.5 size-5 animate-spin text-ink-muted" aria-hidden />}
           {state.kind === 'ok' && <CircleCheck className="mt-0.5 size-5 text-leaf" aria-hidden />}
-          {state.kind === 'down' && <CircleX className="mt-0.5 size-5 text-[#b74232]" aria-hidden />}
+          {state.kind === 'down' && <CircleX className="mt-0.5 size-5 text-danger" aria-hidden />}
           <div>
             <p className="text-sm font-semibold text-ink">
               {state.kind === 'loading' && 'Checking backend…'}
@@ -52,7 +52,7 @@ export function BackendStatus({ className }: { className?: string }) {
           type="button"
           onClick={() => void check()}
           disabled={state.kind === 'loading'}
-          className="rounded-md p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-leaf disabled:opacity-40"
+          className="rounded-md p-1.5 text-ink-muted transition hover:bg-ink/10 hover:text-ink focus-visible:outline-2 focus-visible:outline-leaf disabled:opacity-40"
           aria-label="Check backend connection again"
         >
           <RefreshCw className="size-4" aria-hidden />
