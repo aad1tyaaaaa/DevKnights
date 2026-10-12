@@ -60,6 +60,21 @@ export interface Finding {
   unknowns?: string[];
   /** Each path starts with the literal "root" (the scanned project), then node ids "name@version". */
   paths: string[][];
+  threat_explanation?: {
+    source: 'deterministic' | 'gemini';
+    what_was_detected: string;
+    why_it_may_be_risky: string;
+    evidence_summary: string[];
+    uncertainty: string;
+    investigation_steps: string[];
+  } | null;
+  remediation?: { action: string; rationale: string; confidence: 'low' | 'medium' | 'high'; limitation?: string | null }[];
+  blast_radius?: {
+    shortest_path: string[];
+    introducing_direct_dependencies: string[];
+    affected_package_count: number;
+    reachability_note: string;
+  } | null;
 }
 
 export type BackendState = 'unknown' | 'connected' | 'unreachable';

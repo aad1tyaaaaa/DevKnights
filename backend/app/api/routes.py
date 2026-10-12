@@ -60,8 +60,12 @@ finding_ranker = (
         model=settings.gemini_model,
         base_url=settings.gemini_base_url,
         timeout_seconds=settings.gemini_timeout_seconds,
+        retries=settings.gemini_retries,
+        cache_enabled=settings.gemini_cache_enabled,
+        max_response_bytes=settings.gemini_max_response_bytes,
+        max_findings_per_request=settings.gemini_max_findings_per_request,
     )
-    if settings.ai_ranking_enabled and settings.gemini_api_key is not None
+    if (settings.ai_ranking_enabled or settings.ai_explanations_enabled) and settings.gemini_api_key is not None
     else None
 )
 static_allowed_hosts = settings.static_analysis_allowed_host_set
@@ -100,6 +104,12 @@ scan_service = ScanService(
     trusted_packages=settings.typosquat_trusted_package_list,
     static_inspector=static_inspector,
     static_max_packages=settings.static_analysis_max_packages,
+    ai_ranking_enabled=settings.ai_ranking_enabled,
+    ai_explanations_enabled=settings.ai_explanations_enabled,
+    ai_explanation_min_priority=settings.ai_explanation_min_priority,
+    blast_radius_max_paths=settings.blast_radius_max_paths,
+    blast_radius_max_depth=settings.blast_radius_max_depth,
+    blast_radius_max_upstream_dependents=settings.blast_radius_max_upstream_dependents,
 )
 github_service = GitHubService(settings)
 
@@ -122,6 +132,12 @@ trust_gate = TrustGate(
     trusted_packages=settings.typosquat_trusted_package_list,
     static_inspector=static_inspector,
     static_max_packages=settings.static_analysis_max_packages,
+    finding_ranker=finding_ranker,
+    ai_explanations_enabled=settings.ai_explanations_enabled,
+    ai_explanation_min_priority=settings.ai_explanation_min_priority,
+    blast_radius_max_paths=settings.blast_radius_max_paths,
+    blast_radius_max_depth=settings.blast_radius_max_depth,
+    blast_radius_max_upstream_dependents=settings.blast_radius_max_upstream_dependents,
 )
 
 

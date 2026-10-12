@@ -178,6 +178,38 @@ class FindingEvidence(BaseModel):
     observed_at: datetime
 
 
+class ThreatExplanation(BaseModel):
+    source: Literal["deterministic", "gemini"] = "deterministic"
+    what_was_detected: str = Field(min_length=1, max_length=1000)
+    why_it_may_be_risky: str = Field(min_length=1, max_length=1500)
+    evidence_summary: list[str] = Field(default_factory=list, max_length=20)
+    uncertainty: str = Field(min_length=1, max_length=1000)
+    investigation_steps: list[str] = Field(default_factory=list, max_length=10)
+
+
+class RemediationRecommendation(BaseModel):
+    action: str = Field(min_length=1, max_length=500)
+    rationale: str = Field(min_length=1, max_length=1000)
+    confidence: Literal["low", "medium", "high"]
+    limitation: str | None = Field(default=None, max_length=1000)
+
+
+class BlastRadiusAnalysis(BaseModel):
+    target_node_id: str
+    direct: bool
+    reachable: bool
+    shortest_path: list[str] = Field(default_factory=list)
+    paths: list[list[str]] = Field(default_factory=list)
+    paths_truncated: bool = False
+    introducing_direct_dependencies: list[str] = Field(default_factory=list)
+    upstream_dependents: list[str] = Field(default_factory=list)
+    upstream_dependents_truncated: bool = False
+    affected_package_count: int = Field(ge=0)
+    affected_package_definition: str
+    branch_path_counts: dict[str, int] = Field(default_factory=dict)
+    reachability_note: str
+
+
 class Finding(BaseModel):
     id: str
     rule_id: str
@@ -193,6 +225,9 @@ class Finding(BaseModel):
     explanation: str
     evidence: list[FindingEvidence] = Field(min_length=1)
     paths: list[list[str]] = Field(default_factory=list)
+    threat_explanation: ThreatExplanation | None = None
+    remediation: list[RemediationRecommendation] = Field(default_factory=list)
+    blast_radius: BlastRadiusAnalysis | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -234,7 +269,7 @@ GateThreshold = Literal["high", "medium", "low", "never"]
 
 
 class GateRequest(BaseModel):
-    """Compare a pull request's lockfile against its base. Package code is never downloaded or executed."""
+    """Compare a pull request's lockfile against its base. Optional inspection reads verified archives; code is never executed."""
 
     model_config = ConfigDict(extra="forbid")
 

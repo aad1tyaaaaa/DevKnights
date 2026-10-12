@@ -5,7 +5,7 @@ import httpx
 
 from app.detection.osv import OsvClient
 from app.models.schemas import Finding, FindingEvidence
-from app.gate import COMMENT_MARKER, TrustGate, _load_lockfile
+from app.gate import COMMENT_MARKER, TrustGate, _load_lockfile, _safe_markdown_text
 from app.parsers.npm_registry import NpmRegistryClient
 from tests.fakes import osv_transport
 
@@ -78,6 +78,9 @@ def test_gate_fails_when_an_update_introduces_an_install_script():
     assert checks["No known vulnerabilities"] == "pass"
     assert checks["Adds 1 new dependency edge(s)"] == "warn"  # evil-helper; the existing body-parser edge is not new
     assert express.blast_radius == ["shop-app", "express"]
+    assert all(finding.threat_explanation is not None for finding in express.findings)
+    assert all(finding.remediation for finding in express.findings)
+    assert all(finding.blast_radius is not None for finding in express.findings)
 
     helper = next(release for release in report.releases if release.package == "evil-helper")
     assert helper.verdict == "warn"  # a new package's install script is reviewed, not blocked, at fail_on=high
@@ -97,6 +100,7 @@ def test_gate_fails_when_an_update_introduces_an_install_script():
     assert "- ✗ New postinstall script introduced" in report.markdown
     assert "Blast radius: `shop-app → express`" in report.markdown
     assert "1 release(s) passed" in report.markdown
+    assert "Recommended:" in report.markdown
 
 
 def test_fail_threshold_never_downgrades_failures_to_warnings():
@@ -211,3 +215,11 @@ def test_static_finding_is_evaluated_by_the_gate():
     report = asyncio.run(gate.evaluate(head, None, fail_on="high"))
     assert report.verdict == "fail"
     assert report.releases[0].findings[0].rule_id == "suspicious-install-time-behavior"
+
+
+def test_provider_text_is_rendered_as_inert_gate_markdown():
+    rendered = _safe_markdown_text("[click](https://evil.invalid) @everyone <img src=x>\nnext")
+    assert "\\[click\\]\\(" in rendered
+    assert "@\u200beveryone" in rendered
+    assert "&lt;img" in rendered
+    assert "\n" not in rendered

@@ -53,6 +53,38 @@ export interface Evidence {
   observed_at: string | null
 }
 
+export interface ThreatExplanation {
+  source: 'deterministic' | 'gemini'
+  what_was_detected: string
+  why_it_may_be_risky: string
+  evidence_summary: string[]
+  uncertainty: string
+  investigation_steps: string[]
+}
+
+export interface RemediationRecommendation {
+  action: string
+  rationale: string
+  confidence: Confidence
+  limitation?: string | null
+}
+
+export interface BlastRadiusAnalysis {
+  target_node_id: string
+  direct: boolean
+  reachable: boolean
+  shortest_path: string[]
+  paths: string[][]
+  paths_truncated: boolean
+  introducing_direct_dependencies: string[]
+  upstream_dependents: string[]
+  upstream_dependents_truncated: boolean
+  affected_package_count: number
+  affected_package_definition: string
+  branch_path_counts: Record<string, number>
+  reachability_note: string
+}
+
 export interface Finding {
   id: string
   rule_id: string
@@ -71,6 +103,9 @@ export interface Finding {
   unknowns?: string[]
   /** Each path starts with the literal "root" (the scanned project), then node ids "name@version". */
   paths: string[][]
+  threat_explanation?: ThreatExplanation | null
+  remediation?: RemediationRecommendation[]
+  blast_radius?: BlastRadiusAnalysis | null
 }
 
 export interface RegistryMetadata {

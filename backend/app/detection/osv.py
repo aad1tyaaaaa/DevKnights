@@ -19,6 +19,7 @@ class OsvAdvisory:
     aliases: tuple[str, ...]
     summary: str | None
     severity: str | None
+    fixed_versions: tuple[str, ...] = ()
 
 
 class OsvClient:
@@ -161,7 +162,26 @@ def advisory_from_record(record: dict[str, Any]) -> OsvAdvisory:
         aliases=tuple(alias for alias in aliases if isinstance(alias, str)) if isinstance(aliases, list) else (),
         summary=summary if isinstance(summary, str) else None,
         severity=normalized_severity(record),
+        fixed_versions=fixed_versions(record),
     )
+
+
+def fixed_versions(record: dict[str, Any]) -> tuple[str, ...]:
+    """Exact npm versions named by OSV `fixed` events; no range inference or safety claim."""
+    versions: set[str] = set()
+    for affected in record.get("affected") or []:
+        if not isinstance(affected, dict):
+            continue
+        package = affected.get("package")
+        if not isinstance(package, dict) or str(package.get("ecosystem", "")).lower() != "npm":
+            continue
+        for version_range in affected.get("ranges") or []:
+            if not isinstance(version_range, dict):
+                continue
+            for event in version_range.get("events") or []:
+                if isinstance(event, dict) and isinstance(event.get("fixed"), str) and event["fixed"]:
+                    versions.add(event["fixed"])
+    return tuple(sorted(versions)[:20])
 
 
 def normalized_severity(record: dict[str, Any]) -> str | None:

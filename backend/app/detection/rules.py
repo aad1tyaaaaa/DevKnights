@@ -26,6 +26,7 @@ def detect_known_vulnerabilities(
             continue
         severity, priority = _advisory_risk(matches)
         identifiers = sorted({identifier for advisory in matches for identifier in (advisory.id, *advisory.aliases)})
+        fixed_versions = sorted({version for advisory in matches for version in advisory.fixed_versions})
         # OpenSSF "MAL-" records report a malicious package, not a bug in a legitimate one.
         malicious = any(advisory.id.startswith("MAL-") for advisory in matches)
         findings.append(
@@ -52,12 +53,14 @@ def detect_known_vulnerabilities(
                             "package": node.name,
                             "version": node.version,
                             "identifiers": identifiers,
+                            "fixed_versions": fixed_versions,
                             "advisories": [
                                 {
                                     "id": advisory.id,
                                     "aliases": list(advisory.aliases),
                                     "summary": advisory.summary,
                                     "severity": advisory.severity,
+                                    "fixed_versions": list(advisory.fixed_versions),
                                 }
                                 for advisory in matches
                             ],

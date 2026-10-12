@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import html
 import json
 import os
 import sys
@@ -29,6 +30,8 @@ from pydantic import ValidationError
 
 from app.blockchain.verify import ReleaseVerifier
 from app.detection.osv import OsvClient
+from app.detection.ai_ranker import AiExplanationError, GeminiFindingRanker
+from app.detection.intelligence import enrich_findings
 from app.detection.typosquatting import DEFAULT_TRUSTED_PACKAGES, detect_typosquatting
 from app.detection.static_analysis import StaticAnalysisLimits, StaticArtifactInspector
 from app.detection.rules import (
@@ -81,6 +84,12 @@ class TrustGate:
         trusted_packages: tuple[str, ...] | list[str] | None = None,
         static_inspector: StaticArtifactInspector | None = None,
         static_max_packages: int = 20,
+        finding_ranker: GeminiFindingRanker | None = None,
+        ai_explanations_enabled: bool = False,
+        ai_explanation_min_priority: int = 50,
+        blast_radius_max_paths: int = 25,
+        blast_radius_max_depth: int = 20,
+        blast_radius_max_upstream_dependents: int = 100,
     ) -> None:
         self.registry = registry
         self.osv = osv
@@ -89,6 +98,12 @@ class TrustGate:
         self.trusted_packages = tuple(trusted_packages or DEFAULT_TRUSTED_PACKAGES)
         self.static_inspector = static_inspector
         self.static_max_packages = max(1, static_max_packages)
+        self.finding_ranker = finding_ranker
+        self.ai_explanations_enabled = ai_explanations_enabled
+        self.ai_explanation_min_priority = max(0, min(100, ai_explanation_min_priority))
+        self.blast_radius_max_paths = max(1, blast_radius_max_paths)
+        self.blast_radius_max_depth = max(1, blast_radius_max_depth)
+        self.blast_radius_max_upstream_dependents = max(0, blast_radius_max_upstream_dependents)
 
     async def evaluate(
         self,
@@ -176,6 +191,21 @@ class TrustGate:
             if missing:
                 warnings.append(f"OSV advisory lookup was unavailable for {missing} changed release(s); vulnerability status is unknown.")
             findings.extend(detect_known_vulnerabilities(head, advisories=advisories, observed_at=observed_at))
+
+        findings = enrich_findings(
+            findings,
+            head,
+            max_paths=self.blast_radius_max_paths,
+            max_depth=self.blast_radius_max_depth,
+            max_upstream_dependents=self.blast_radius_max_upstream_dependents,
+        )
+        if findings and self.finding_ranker is not None and self.ai_explanations_enabled:
+            try:
+                findings = await self.finding_ranker.explain(
+                    findings, min_priority=self.ai_explanation_min_priority
+                )
+            except AiExplanationError:
+                warnings.append("AI explanations were unavailable; deterministic explanations were retained.")
 
         anchors = await self._verify_anchors(changed_releases, warnings)
 
@@ -427,7 +457,17 @@ def render_markdown(report: GateReport) -> str:
             lines.append("")
             lines.append("<details><summary>Evidence</summary>")
             lines.append("")
-            lines.extend(f"- **{finding.title}** ({finding.severity}, `{finding.rule_id}`): {finding.explanation}" for finding in explained)
+            for finding in explained:
+                explanation = (
+                    finding.threat_explanation.why_it_may_be_risky
+                    if finding.threat_explanation is not None
+                    else finding.explanation
+                )
+                lines.append(
+                    f"- **{finding.title}** ({finding.severity}, `{finding.rule_id}`): {_safe_markdown_text(explanation)}"
+                )
+                if finding.remediation:
+                    lines.append(f"  - Recommended: {_safe_markdown_text(finding.remediation[0].action)}")
             lines.append("")
             lines.append("</details>")
         lines.append("")
@@ -463,6 +503,15 @@ def render_markdown(report: GateReport) -> str:
     if len(markdown) > MAX_COMMENT_CHARS:
         markdown = markdown[:MAX_COMMENT_CHARS] + "\n\n…report truncated; see the JSON report for every release."
     return markdown
+
+
+def _safe_markdown_text(value: str) -> str:
+    """Render provider/package-derived text as inert GitHub Markdown text."""
+    text = " ".join(value.replace("\x00", "").splitlines()).strip()[:2_000]
+    text = html.escape(text, quote=True).replace("@", "@\u200b")
+    for character in "\\`*_{}[]()#+-.!|>":
+        text = text.replace(character, "\\" + character)
+    return text
 
 
 def _load_lockfile(path: str | None) -> dict[str, Any] | None:
@@ -542,6 +591,20 @@ def main(argv: list[str] | None = None) -> int:
         if settings.static_analysis_enabled
         else None
     )
+    finding_ranker = (
+        GeminiFindingRanker(
+            api_key=settings.gemini_api_key.get_secret_value(),
+            model=settings.gemini_model,
+            base_url=settings.gemini_base_url,
+            timeout_seconds=settings.gemini_timeout_seconds,
+            retries=settings.gemini_retries,
+            cache_enabled=settings.gemini_cache_enabled,
+            max_response_bytes=settings.gemini_max_response_bytes,
+            max_findings_per_request=settings.gemini_max_findings_per_request,
+        )
+        if settings.ai_explanations_enabled and settings.gemini_api_key is not None
+        else None
+    )
     report = asyncio.run(
         TrustGate(
             registry,
@@ -550,6 +613,12 @@ def main(argv: list[str] | None = None) -> int:
             trusted_packages=settings.typosquat_trusted_package_list,
             static_inspector=static_inspector,
             static_max_packages=settings.static_analysis_max_packages,
+            finding_ranker=finding_ranker,
+            ai_explanations_enabled=settings.ai_explanations_enabled,
+            ai_explanation_min_priority=settings.ai_explanation_min_priority,
+            blast_radius_max_paths=settings.blast_radius_max_paths,
+            blast_radius_max_depth=settings.blast_radius_max_depth,
+            blast_radius_max_upstream_dependents=settings.blast_radius_max_upstream_dependents,
         ).evaluate(head, base, fail_on=args.fail_on, label=args.label)
     )
     if args.markdown:

@@ -68,6 +68,50 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink/70">{f.explanation}</p>
 
+              {f.threat_explanation && (
+                <div className="mt-4 rounded-lg border border-line bg-surface p-3 text-xs text-ink/70">
+                  <p className="font-semibold text-ink">
+                    Security explanation · {f.threat_explanation.source === 'gemini' ? 'AI-assisted' : 'deterministic'}
+                  </p>
+                  <p className="mt-2 leading-5">{f.threat_explanation.why_it_may_be_risky}</p>
+                  <p className="mt-2 leading-5"><span className="font-semibold text-ink">Uncertainty:</span> {f.threat_explanation.uncertainty}</p>
+                  {f.threat_explanation.evidence_summary.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-4">
+                      {f.threat_explanation.evidence_summary.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {(f.remediation?.length ?? 0) > 0 && (
+                <>
+                  <h4 className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Recommended actions</h4>
+                  <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-sm text-ink/70">
+                    {f.remediation!.map((item) => (
+                      <li key={item.action}>
+                        <span className="font-medium text-ink">{item.action}</span>
+                        <span className="block text-xs text-ink-muted">{item.rationale}</span>
+                        {item.limitation && <span className="block text-xs text-warn">Limitation: {item.limitation}</span>}
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              )}
+
+              {f.blast_radius && (
+                <div className="mt-5 rounded-lg bg-mint-soft/60 p-3 text-xs text-ink/70">
+                  <p className="font-semibold text-ink">Dependency impact</p>
+                  <p className="mt-1">{f.blast_radius.direct ? 'Direct dependency' : 'Transitive dependency'} · {f.blast_radius.affected_package_count} reachable package node(s)</p>
+                  {f.blast_radius.introducing_direct_dependencies.length > 0 && (
+                    <p className="mt-1 break-words">Introduced by: {f.blast_radius.introducing_direct_dependencies.join(', ')}</p>
+                  )}
+                  {f.blast_radius.shortest_path.length > 0 && (
+                    <p className="mt-1 break-words">Shortest path: {f.blast_radius.shortest_path.join(' → ')}</p>
+                  )}
+                  <p className="mt-2 text-ink-muted">{f.blast_radius.reachability_note}</p>
+                </div>
+              )}
+
               {f.ranking_source === 'gemini' && f.ai_priority_score != null && (
                 <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-ink/70">
                   <p className="font-semibold text-ink">Gemini ranking · {f.ai_priority_score}/100</p>

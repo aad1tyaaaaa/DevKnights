@@ -120,7 +120,7 @@ class StaticArtifactInspector:
             if result.limitation:
                 warnings.append(f"Static inspection skipped for {node.id}: {result.limitation}")
                 continue
-            findings.extend(_findings_for_inspection(graph, node, result, observed_at))
+            findings.extend(findings_for_inspection(graph, node, result, observed_at))
         return findings, warnings
 
     async def inspect_node(self, node: GraphNode) -> StaticInspection:
@@ -229,7 +229,7 @@ def _inspect_archive(archive: bytes, limits: StaticAnalysisLimits) -> tuple[Insp
     inspected: list[InspectedFile] = []
     for path, source in sorted(sources.items()):
         reachable = _matches_install_target(path, targets)
-        indicators = tuple(_scan_source(path, source))
+        indicators = tuple(scan_source_indicators(path, source))
         if indicators:
             inspected.append(InspectedFile(path=path, install_reachable=reachable, indicators=indicators))
     return tuple(inspected)
@@ -262,7 +262,7 @@ def _matches_install_target(path: str, targets: set[str]) -> bool:
     return any(package_path == target or package_path.endswith("/" + target) for target in targets)
 
 
-def _scan_source(path: str, source: str) -> list[CodeIndicator]:
+def scan_source_indicators(path: str, source: str) -> list[CodeIndicator]:
     indicators: list[CodeIndicator] = []
     patterns = (
         ("process-execution", "Process execution", _PROCESS),
@@ -295,7 +295,7 @@ def _matches_any_integrity(data: bytes, integrity_values: list[str]) -> bool:
     return False
 
 
-def _findings_for_inspection(
+def findings_for_inspection(
     graph: ScanGraph,
     node: GraphNode,
     inspection: StaticInspection,

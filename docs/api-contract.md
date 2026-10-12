@@ -129,7 +129,7 @@ Node `id` is `name@version`, so multiple installed versions stay distinct. **The
 
 ### Findings — `GET /api/scans/{scan_id}/findings`
 
-Every finding carries at least one piece of evidence. `severity`, `confidence`, and deterministic `priority_score` are independent. When optional Gemini ranking succeeds, `ai_priority_score` controls list order while both scores remain visible. Provider failure retains deterministic order.
+Every finding carries at least one piece of evidence. `severity`, `confidence`, and deterministic `priority_score` are independent. When optional Gemini ranking succeeds, `ai_priority_score` controls list order while both scores remain visible. Provider failure retains deterministic order. Phase 2 fields are additive and optional when reading older persisted scans.
 
 Implemented rules are `known-vulnerability`, `new-dependency`, `dependency-expansion`, `unusual-release-timing`, and `publisher-change`. OSV checks exact npm package versions on every scan, including the first; change rules require a baseline. Publisher changes compare npm's release-specific `_npmUser.name` values and are omitted when either side is unavailable.
 
@@ -150,7 +150,33 @@ Implemented rules are `known-vulnerability`, `new-dependency`, `dependency-expan
     "evidence": [
       { "source": "lockfile", "field": "…", "value": "1.2.0", "observed_at": "2026-10-12T10:00:00Z" }
     ],                              // source: lockfile | npm-registry | osv | registry-contract | static-analysis
-    "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // "root" = the project, then graph node ids
+    "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]],  // compatibility path list
+    "threat_explanation": {
+      "source": "deterministic",   // deterministic | gemini
+      "what_was_detected": "Short factual description",
+      "why_it_may_be_risky": "Evidence-bounded explanation",
+      "evidence_summary": ["lockfile: dependency_added"],
+      "uncertainty": "What the evidence does not establish",
+      "investigation_steps": ["Review why this dependency is required."]
+    },
+    "remediation": [
+      { "action": "Review the dependency.", "rationale": "It expands supply-chain reachability.", "confidence": "medium", "limitation": null }
+    ],
+    "blast_radius": {
+      "target_node_id": "example-pkg@1.2.0",
+      "direct": false,
+      "reachable": true,
+      "shortest_path": ["root", "dep-a@2.0.0", "example-pkg@1.2.0"],
+      "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]],
+      "paths_truncated": false,
+      "introducing_direct_dependencies": ["dep-a@2.0.0"],
+      "upstream_dependents": ["dep-a@2.0.0"],
+      "upstream_dependents_truncated": false,
+      "affected_package_count": 2,
+      "affected_package_definition": "Unique reachable upstream package-release nodes plus the target.",
+      "branch_path_counts": {"dep-a@2.0.0": 1},
+      "reachability_note": "Dependency reachability is not proof of runtime execution."
+    }
   }
 ]
 ```

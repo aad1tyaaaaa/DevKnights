@@ -327,6 +327,10 @@ def test_project_baseline_generates_persisted_evidence_backed_findings(api: tupl
     assert next(f for f in response.json() if f["rule_id"] == "new-dependency")["paths"] == [
         ["root", "parent@1.0.0", "new-child@1.0.0"]
     ]
+    new_dependency = next(f for f in response.json() if f["rule_id"] == "new-dependency")
+    assert new_dependency["threat_explanation"]["source"] == "deterministic"
+    assert new_dependency["remediation"]
+    assert new_dependency["blast_radius"]["introducing_direct_dependencies"] == ["parent@1.0.0"]
 
     reopened = ScanRepository(service.repository._engine.url.render_as_string(hide_password=False))
     assert len(reopened.get_findings(current_id)) == 2

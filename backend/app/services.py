@@ -5,7 +5,8 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
-from app.detection.ai_ranker import AiRankingError, GeminiFindingRanker
+from app.detection.ai_ranker import AiExplanationError, AiRankingError, GeminiFindingRanker
+from app.detection.intelligence import enrich_findings
 from app.detection.osv import OsvClient
 from app.detection.typosquatting import DEFAULT_TRUSTED_PACKAGES, detect_typosquatting
 from app.detection.static_analysis import StaticArtifactInspector
@@ -48,6 +49,12 @@ class ScanService:
         trusted_packages: tuple[str, ...] | list[str] | None = None,
         static_inspector: StaticArtifactInspector | None = None,
         static_max_packages: int = 20,
+        ai_ranking_enabled: bool | None = None,
+        ai_explanations_enabled: bool = False,
+        ai_explanation_min_priority: int = 50,
+        blast_radius_max_paths: int = 25,
+        blast_radius_max_depth: int = 20,
+        blast_radius_max_upstream_dependents: int = 100,
     ) -> None:
         self.repository = repository
         self.registry = registry
@@ -56,6 +63,12 @@ class ScanService:
         self.trusted_packages = tuple(trusted_packages or DEFAULT_TRUSTED_PACKAGES)
         self.static_inspector = static_inspector
         self.static_max_packages = max(1, static_max_packages)
+        self.ai_ranking_enabled = finding_ranker is not None if ai_ranking_enabled is None else ai_ranking_enabled
+        self.ai_explanations_enabled = ai_explanations_enabled
+        self.ai_explanation_min_priority = max(0, min(100, ai_explanation_min_priority))
+        self.blast_radius_max_paths = max(1, blast_radius_max_paths)
+        self.blast_radius_max_depth = max(1, blast_radius_max_depth)
+        self.blast_radius_max_upstream_dependents = max(0, blast_radius_max_upstream_dependents)
 
     def create_scan(self, lockfile: dict[str, Any], project_name: str | None, owner_id: str | None = None) -> str:
         scan_id = str(uuid.uuid4())
@@ -171,14 +184,28 @@ class ScanService:
                 findings.extend(static_findings)
                 analysis_warnings.extend(static_warnings)
             findings = correlate_publisher_risk(findings, observed_at=row.created_at)
+            findings = enrich_findings(
+                findings,
+                scan_graph,
+                max_paths=self.blast_radius_max_paths,
+                max_depth=self.blast_radius_max_depth,
+                max_upstream_dependents=self.blast_radius_max_upstream_dependents,
+            )
             findings.sort(
                 key=lambda finding: (-finding.priority_score, finding.rule_id, finding.package, finding.version)
             )
-            if findings and self.finding_ranker is not None:
+            if findings and self.finding_ranker is not None and self.ai_ranking_enabled:
                 try:
                     findings = await self.finding_ranker.rank(findings)
                 except AiRankingError:
                     analysis_warnings.append("AI ranking was unavailable; deterministic priorities were retained")
+            if findings and self.finding_ranker is not None and self.ai_explanations_enabled:
+                try:
+                    findings = await self.finding_ranker.explain(
+                        findings, min_priority=self.ai_explanation_min_priority
+                    )
+                except AiExplanationError:
+                    analysis_warnings.append("AI explanations were unavailable; deterministic explanations were retained")
             scan_graph = scan_graph.model_copy(update={"warnings": analysis_warnings})
             direct_count = sum(node.direct for node in nodes)
             summary = ScanSummary(

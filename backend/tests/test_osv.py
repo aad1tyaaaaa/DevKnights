@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from app.detection.osv import OsvClient, cvss3_base_score, normalized_severity
+from app.detection.osv import OsvClient, advisory_from_record, cvss3_base_score, normalized_severity
 from tests.fakes import osv_transport
 
 GHSA = {"id": "GHSA-test-1234", "aliases": ["CVE-2026-0001"], "summary": "Synthetic advisory", "database_specific": {"severity": "HIGH"}}
@@ -98,3 +98,24 @@ def test_cvss3_base_scores_match_the_specification():
     assert cvss3_base_score("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N") == 0.0
     assert cvss3_base_score("CVSS:4.0/AV:N") is None
     assert cvss3_base_score("CVSS:3.1/AV:X") is None
+
+
+def test_osv_fixed_versions_are_preserved_without_range_inference():
+    advisory = advisory_from_record(
+        {
+            "id": "GHSA-fixed",
+            "affected": [
+                {
+                    "package": {"ecosystem": "npm", "name": "pkg"},
+                    "ranges": [
+                        {"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "1.2.4"}]}
+                    ],
+                },
+                {
+                    "package": {"ecosystem": "PyPI", "name": "pkg"},
+                    "ranges": [{"events": [{"fixed": "9.9.9"}]}],
+                },
+            ],
+        }
+    )
+    assert advisory.fixed_versions == ("1.2.4",)

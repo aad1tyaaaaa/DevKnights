@@ -125,6 +125,14 @@ function findingItem(scanId: string, f: Finding): vscode.TreeItem {
     ? `Gemini: ${f.ai_priority_score}/100 · Rule score: ${f.priority_score}/100`
     : `Priority: ${f.priority_score}/100`;
   md.appendText(`Severity: ${f.severity} · Confidence: ${f.confidence} · ${ranking} · Rule: ${f.rule_id}\n\n${f.explanation}`);
+  if (f.threat_explanation) {
+    md.appendMarkdown(`\n\n**Security explanation (${f.threat_explanation.source === 'gemini' ? 'AI-assisted' : 'deterministic'})**\n\n`);
+    md.appendText(`${f.threat_explanation.why_it_may_be_risky}\n\nUncertainty: ${f.threat_explanation.uncertainty}`);
+  }
+  if (f.remediation?.[0]) md.appendText(`\n\nRecommended: ${f.remediation[0].action}`);
+  if (f.blast_radius) {
+    md.appendText(`\n\nDependency impact: ${f.blast_radius.affected_package_count} reachable package node(s). ${f.blast_radius.reachability_note}`);
+  }
   if (f.ranking_source === 'gemini' && f.ai_rationale) md.appendText(`\n\nGemini rationale: ${f.ai_rationale}`);
   if (f.paths[0]) md.appendText(`\n\nPath: ${f.paths[0].join(' → ')}`);
   t.tooltip = md;
