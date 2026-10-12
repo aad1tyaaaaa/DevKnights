@@ -1,13 +1,20 @@
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_DATABASE_URL = f"sqlite:///{_BACKEND_ROOT / 'provenyx.db'}"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="PROVENYX_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="PROVENYX_",
+        env_file=_BACKEND_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     # Shared access key (X-Provenyx-Key header). Unset = no check: only for a trusted local machine.
@@ -15,7 +22,7 @@ class Settings(BaseSettings):
     # Scan and trust-gate submissions per client address per minute; 0 disables the limit.
     submission_rate_limit_per_minute: int = 30
     max_scan_bytes: int = 10 * 1024 * 1024
-    database_url: str = "sqlite:///./provenyx.db"
+    database_url: str = _DEFAULT_DATABASE_URL
     npm_registry_url: str = "https://registry.npmjs.org"
     npm_registry_concurrency: int = 10
     npm_registry_timeout_seconds: float = 5.0
@@ -44,6 +51,21 @@ class Settings(BaseSettings):
     registry_deployment_file: str = str(_REPO_ROOT / "contracts" / "deployments" / "localhost.json")
     registry_address: str | None = None
     registry_timeout_seconds: float = 3.0
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def resolve_relative_sqlite_url(cls, value: object) -> object:
+        prefix = "sqlite:///./"
+        if isinstance(value, str) and value.startswith(prefix):
+            return f"sqlite:///{(_BACKEND_ROOT / value.removeprefix(prefix)).resolve()}"
+        return value
+
+    @field_validator("registry_deployment_file", mode="before")
+    @classmethod
+    def resolve_registry_deployment_file(cls, value: object) -> object:
+        if isinstance(value, str) and value and not Path(value).is_absolute():
+            return str((_BACKEND_ROOT / value).resolve())
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:

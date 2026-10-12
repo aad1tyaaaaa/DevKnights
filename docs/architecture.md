@@ -51,4 +51,4 @@ The monorepo does **not** use npm workspaces: each JS package has its own `node_
 
 ## Persistence
 
-Phase 3 stores submitted scan snapshots and completed graphs in SQLite through SQLAlchemy. Configure it with `PROVENYX_DATABASE_URL` (default `sqlite:///./provenyx.db`). A production move to PostgreSQL still requires migrations before deployment.
+Phase 3 stores submitted scan snapshots and completed graphs in SQLite through SQLAlchemy. The backend always loads `backend/.env`; configure it there with `PROVENYX_DATABASE_URL`. Its default `sqlite:///./provenyx.db` is anchored to the backend directory, so every launch method uses `backend/provenyx.db`. A production move to PostgreSQL still requires migrations before deployment.
