@@ -61,7 +61,21 @@ No other top-level fields are accepted.
 
 ## CORS
 
-Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`), methods `GET`/`POST`, header `Content-Type`. The extension runs in Node and is not subject to CORS.
+Browser access is restricted to `PROVENYX_CORS_ORIGINS` (default `http://localhost:3000,http://127.0.0.1:3000`), methods `GET`/`POST`, header `Content-Type`, with credentialed requests enabled for the HTTP-only GitHub session cookie. The extension runs in Node and is not subject to CORS.
+
+## GitHub project import
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/github/auth/status` | OAuth configuration and current connected user |
+| `GET /api/github/auth/login` | Start GitHub OAuth authorization |
+| `GET /api/github/auth/callback` | Validate OAuth state and create the encrypted session cookie |
+| `POST /api/github/auth/logout` | Delete the GitHub session cookie |
+| `GET /api/github/repositories` | List all repositories accessible through the connected account |
+| `GET /api/github/repositories/{owner}/{repository}/lockfiles` | Discover root and nested `package-lock.json` files on the default branch |
+| `POST /api/github/scans` | Fetch one selected lockfile and submit it to the normal scan pipeline |
+
+`POST /api/github/scans` accepts `{ "owner": "org", "repository": "project", "lockfile_path": "package-lock.json" }`. The API fetches only that file; it does not clone the repository, install dependencies, or execute project code. GitHub endpoints return `401` until an account is connected.
 
 ## Scan results (implemented — Phases 3–4, owner: Omkar)
 
@@ -117,7 +131,7 @@ Node `id` is `name@version`, so multiple installed versions stay distinct. **The
 
 Every finding carries at least one piece of evidence. `severity`, `confidence`, and deterministic `priority_score` are independent. When optional Gemini ranking succeeds, `ai_priority_score` controls list order while both scores remain visible. Provider failure retains deterministic order.
 
-Implemented rules are `new-dependency`, `dependency-expansion`, `unusual-release-timing`, and `publisher-change`. Publisher changes compare npm's release-specific `_npmUser.name` values and are omitted when either side is unavailable.
+Implemented rules are `known-vulnerability`, `new-dependency`, `dependency-expansion`, `unusual-release-timing`, and `publisher-change`. OSV checks exact npm package versions on every scan, including the first; change rules require a baseline. Publisher changes compare npm's release-specific `_npmUser.name` values and are omitted when either side is unavailable.
 
 ```jsonc
 [
@@ -135,7 +149,7 @@ Implemented rules are `new-dependency`, `dependency-expansion`, `unusual-release
     "explanation": "Why this was flagged and what to check.",
     "evidence": [
       { "source": "lockfile", "field": "…", "value": "1.2.0", "observed_at": "2026-10-12T10:00:00Z" }
-    ],                              // source: lockfile | npm-registry | registry-contract
+    ],                              // source: lockfile | npm-registry | osv | registry-contract
     "paths": [["root", "dep-a@2.0.0", "example-pkg@1.2.0"]]   // "root" = the project, then graph node ids
   }
 ]

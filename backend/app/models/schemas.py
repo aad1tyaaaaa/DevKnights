@@ -50,6 +50,42 @@ class ScanAccepted(BaseModel):
     message: str
 
 
+class GitHubAuthStatus(BaseModel):
+    configured: bool
+    connected: bool
+    login: str | None = None
+    avatar_url: str | None = None
+
+
+class GitHubRepository(BaseModel):
+    id: int
+    name: str
+    full_name: str
+    private: bool
+    description: str | None = None
+    default_branch: str
+    html_url: str
+    updated_at: datetime
+    owner_avatar_url: str | None = None
+
+
+class GitHubScanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    owner: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+    repository: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9._-]+$")
+    lockfile_path: str = Field(default="package-lock.json", min_length=1, max_length=1024)
+
+    @model_validator(mode="after")
+    def check_lockfile_path(self) -> "GitHubScanRequest":
+        parts = self.lockfile_path.split("/")
+        if self.lockfile_path.startswith("/") or any(part in ("", ".", "..") for part in parts):
+            raise ValueError("lockfile_path must be a repository-relative path")
+        if parts[-1] != "package-lock.json":
+            raise ValueError("lockfile_path must point to package-lock.json")
+        return self
+
+
 class ScanSummary(BaseModel):
     packages: int
     direct: int
@@ -121,7 +157,7 @@ class ScanComparisonResponse(BaseModel):
 
 
 class FindingEvidence(BaseModel):
-    source: Literal["npm-registry", "lockfile", "registry-contract"]
+    source: Literal["npm-registry", "lockfile", "osv", "registry-contract"]
     field: str
     value: Any
     observed_at: datetime

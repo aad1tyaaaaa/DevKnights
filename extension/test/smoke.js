@@ -85,24 +85,32 @@ async function runChecks() {
   // Auto-confirm the consent dialog (and only that dialog) so the flow can run unattended.
   const originalInfo = vscode.window.showInformationMessage;
   let consentShown = 0;
-  let watcherPrompts = 0;
+  let consentChoice;
   vscode.window.showInformationMessage = (message, ...rest) => {
-    if (/changed\. Scan it\?/.test(message)) watcherPrompts++;
     const opts = rest[0];
     if (opts && typeof opts === 'object' && opts.modal) {
       consentShown++;
       assert.match(opts.detail, /Only package-lock\.json is sent/);
-      return Promise.resolve('Send to Provenyx API');
+      return Promise.resolve(consentChoice);
     }
     return Promise.resolve(undefined);
   };
 
   try {
-    // 1. Backend like today's Phase 1 API: scan accepted, no findings endpoint yet.
+    // 1. Dismissing consent must not contact the API.
     let api = await startFakeApi('phase1');
     await useApi(`http://127.0.0.1:${api.address().port}`);
     await vscode.commands.executeCommand('provenyx.scanDependencies');
     assert.strictEqual(consentShown, 1, 'consent dialog must be shown before sending');
+    assert.strictEqual(api.posts ?? 0, 0, 'dismissing consent must not upload the lockfile');
+    api.close();
+
+    // 2. Backend like today's Phase 1 API: scan accepted, no findings endpoint yet.
+    consentChoice = 'Send to Provenyx API';
+    api = await startFakeApi('phase1');
+    await useApi(`http://127.0.0.1:${api.address().port}`);
+    await vscode.commands.executeCommand('provenyx.scanDependencies');
+    assert.strictEqual(consentShown, 2, 'consent dialog must be shown before sending');
     assert.strictEqual(api.lastProjectName, 'provenyx-sample-project');
     assert.strictEqual(tree.backend, 'connected');
     assert.strictEqual(tree.lastScan.kind, 'in-progress');
@@ -139,10 +147,11 @@ async function runChecks() {
     assert.strictEqual(tree.lastScan.kind, 'failed');
     assert.match(tree.lastScan.message, /Cannot reach the Provenyx API/);
 
-    // 4. Lockfile watcher (autoScanEnabled): a burst of writes gives ONE prompt, and declining sends nothing.
+    // 4. Lockfile watcher: a burst of writes starts ONE consent-gated scan, and declining sends nothing.
     api = await startFakeApi('full');
     await useApi(`http://127.0.0.1:${api.address().port}`);
-    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', true, vscode.ConfigurationTarget.Global);
+    consentChoice = undefined;
+    const consentBeforeWatcher = consentShown;
     const lockPath = lockfiles[0].fsPath;
     const original = fs.readFileSync(lockPath, 'utf8');
     for (let i = 0; i < 3; i++) {
@@ -150,12 +159,13 @@ async function runChecks() {
       await new Promise((r) => setTimeout(r, 150));
     }
     await new Promise((r) => setTimeout(r, 3500)); // > 1.5 s debounce
-    assert.strictEqual(watcherPrompts, 1, `watcher prompts: ${watcherPrompts}`);
-    assert.strictEqual(api.posts ?? 0, 0, 'declining the watcher prompt must not send the lockfile');
-    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', undefined, vscode.ConfigurationTarget.Global);
+    assert.strictEqual(consentShown, consentBeforeWatcher + 1, 'watcher must start one consent-gated scan');
+    assert.strictEqual(api.posts ?? 0, 0, 'declining automatic scan consent must not send the lockfile');
+    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', false, vscode.ConfigurationTarget.Global);
     fs.writeFileSync(lockPath, original);
     await new Promise((r) => setTimeout(r, 2000));
-    assert.strictEqual(watcherPrompts, 1, 'watcher must stay silent when autoScanEnabled is off');
+    assert.strictEqual(consentShown, consentBeforeWatcher + 1, 'watcher must stay silent when autoScanEnabled is off');
+    await vscode.workspace.getConfiguration('provenyx').update('autoScanEnabled', undefined, vscode.ConfigurationTarget.Global);
     api.close();
 
     // 5. Optional: the real backend, if PROVENYX_SMOKE_REAL_API is set (e.g. http://127.0.0.1:8000).

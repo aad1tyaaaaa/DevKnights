@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.routes import get_scan_service
+from app.detection.osv import OsvClient
 from app.main import app
 from app.models.database import ScanRepository
 from app.parsers.npm_registry import NpmRegistryClient
@@ -125,6 +126,61 @@ def test_registry_failure_is_unknown_metadata_not_scan_failure(tmp_path: Path):
     assert graph["status"] == "complete"
     assert graph["nodes"][0]["registry"]["status"] == "unavailable"
     assert "ReadTimeout" in graph["nodes"][0]["registry"]["error"]
+
+
+def test_first_scan_reports_exact_version_osv_advisory(tmp_path: Path):
+    npm = NpmRegistryClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"name": "minimist", "version": "1.2.5"})
+        ),
+        retries=0,
+    )
+    osv = OsvClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "vulns": [
+                        {
+                            "id": "GHSA-test-1234",
+                            "aliases": ["CVE-2026-0001"],
+                            "summary": "Synthetic prototype-pollution advisory",
+                            "database_specific": {"severity": "HIGH"},
+                        }
+                    ]
+                },
+            )
+        ),
+        retries=0,
+    )
+    service = ScanService(
+        ScanRepository(f"sqlite:///{tmp_path / 'osv.db'}"),
+        npm,
+        osv=osv,
+    )
+    app.dependency_overrides[get_scan_service] = lambda: service
+    with TestClient(app) as client:
+        scan_id = client.post(
+            "/api/scans",
+            json={
+                "lockfile": {
+                    "name": "vulnerable-first-scan",
+                    "lockfileVersion": 3,
+                    "packages": {
+                        "": {"dependencies": {"minimist": "1.2.5"}},
+                        "node_modules/minimist": {"version": "1.2.5"},
+                    },
+                }
+            },
+        ).json()["scan_id"]
+        findings = client.get(f"/api/scans/{scan_id}/findings").json()
+        detail = client.get(f"/api/scans/{scan_id}").json()
+    app.dependency_overrides.clear()
+
+    assert detail["summary"]["findings"] == 1
+    assert findings[0]["rule_id"] == "known-vulnerability"
+    assert findings[0]["package"] == "minimist"
+    assert findings[0]["evidence"][0]["source"] == "osv"
 
 
 def test_analysis_failure_is_recorded_without_echoing_lockfile(tmp_path: Path):

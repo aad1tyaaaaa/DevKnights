@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 
-from app.detection.rules import detect_graph_changes, detect_publisher_changes, detect_unusual_release_timing
+from app.detection.osv import OsvAdvisory
+from app.detection.rules import (
+    detect_graph_changes,
+    detect_known_vulnerabilities,
+    detect_publisher_changes,
+    detect_unusual_release_timing,
+)
 from app.models.schemas import GraphEdge, GraphNode, RegistryMetadataResponse, ScanGraph
 
 
@@ -69,6 +75,33 @@ def test_normal_version_only_upgrade_does_not_create_a_risk_finding():
     current = graph("current", [node("pkg", "2.0.0", direct=True)])
 
     assert detect_graph_changes(baseline, current, observed_at=OBSERVED_AT) == []
+
+
+def test_known_vulnerability_is_detected_without_a_baseline():
+    current = graph("current", [node("minimist", "1.2.5", direct=True)])
+
+    findings = detect_known_vulnerabilities(
+        current,
+        advisories={
+            ("minimist", "1.2.5"): (
+                OsvAdvisory(
+                    id="GHSA-test-1234",
+                    aliases=("CVE-2026-0001",),
+                    summary="Synthetic advisory",
+                    severity="high",
+                ),
+            )
+        },
+        observed_at=OBSERVED_AT,
+    )
+
+    assert len(findings) == 1
+    assert findings[0].rule_id == "known-vulnerability"
+    assert findings[0].severity == "high"
+    assert findings[0].confidence == "high"
+    assert findings[0].priority_score == 90
+    assert findings[0].paths == [["root", "minimist@1.2.5"]]
+    assert findings[0].evidence[0].source == "osv"
 
 
 def test_publisher_change_uses_release_specific_registry_evidence():

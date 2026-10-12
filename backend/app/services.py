@@ -5,9 +5,15 @@ from dataclasses import asdict
 from typing import Any
 
 from app.detection.ai_ranker import AiRankingError, GeminiFindingRanker
+from app.detection.osv import OsvClient
 from app.graph.builder import build_dependency_graph
 from app.graph.comparison import compare_graphs
-from app.detection.rules import detect_graph_changes, detect_publisher_changes, detect_unusual_release_timing
+from app.detection.rules import (
+    detect_graph_changes,
+    detect_known_vulnerabilities,
+    detect_publisher_changes,
+    detect_unusual_release_timing,
+)
 from app.models.database import ScanRepository
 from app.models.schemas import (
     GraphEdge,
@@ -28,10 +34,12 @@ class ScanService:
         repository: ScanRepository,
         registry: NpmRegistryClient,
         *,
+        osv: OsvClient | None = None,
         finding_ranker: GeminiFindingRanker | None = None,
     ) -> None:
         self.repository = repository
         self.registry = registry
+        self.osv = osv
         self.finding_ranker = finding_ranker
 
     def create_scan(self, lockfile: dict[str, Any], project_name: str | None) -> str:
@@ -79,14 +87,26 @@ class ScanService:
             )
             project_name = row.project_name or parsed.name
             findings = []
+            if self.osv is not None:
+                advisories = await self.osv.fetch_many((node.name, node.version) for node in nodes)
+                unavailable_count = sum(result is None for result in advisories.values())
+                if unavailable_count:
+                    analysis_warnings.append(
+                        f"OSV advisory lookup was unavailable for {unavailable_count} package release(s); vulnerability status is unknown"
+                    )
+                findings.extend(
+                    detect_known_vulnerabilities(scan_graph, advisories=advisories, observed_at=row.created_at)
+                )
             if project_name:
                 baseline_row = self.repository.find_latest_complete(project_name, exclude_scan_id=scan_id)
                 if baseline_row is not None and baseline_row.graph is not None:
                     baseline_graph = ScanGraph.model_validate(baseline_row.graph)
-                    findings = detect_graph_changes(
-                        baseline_graph,
-                        scan_graph,
-                        observed_at=row.created_at,
+                    findings.extend(
+                        detect_graph_changes(
+                            baseline_graph,
+                            scan_graph,
+                            observed_at=row.created_at,
+                        )
                     )
                     findings.extend(
                         detect_publisher_changes(
@@ -107,14 +127,14 @@ class ScanService:
                             observed_at=row.created_at,
                         )
                     )
-                    findings.sort(key=lambda finding: (-finding.priority_score, finding.rule_id, finding.package))
-                    if findings and self.finding_ranker is not None:
-                        try:
-                            findings = await self.finding_ranker.rank(findings)
-                        except AiRankingError:
-                            analysis_warnings.append(
-                                "AI ranking was unavailable; deterministic priorities were retained"
-                            )
+            findings.sort(
+                key=lambda finding: (-finding.priority_score, finding.rule_id, finding.package, finding.version)
+            )
+            if findings and self.finding_ranker is not None:
+                try:
+                    findings = await self.finding_ranker.rank(findings)
+                except AiRankingError:
+                    analysis_warnings.append("AI ranking was unavailable; deterministic priorities were retained")
             scan_graph = scan_graph.model_copy(update={"warnings": analysis_warnings})
             direct_count = sum(node.direct for node in nodes)
             summary = ScanSummary(

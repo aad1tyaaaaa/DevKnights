@@ -16,7 +16,7 @@ export type Result<T> =
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<Result<T>> {
   let res: Response
   try {
-    res = await fetch(API_BASE_URL + path, { ...init, cache: 'no-store', signal: AbortSignal.timeout(15_000) })
+    res = await fetch(API_BASE_URL + path, { ...init, credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000) })
   } catch (err) {
     const timedOut = err instanceof Error && err.name === 'TimeoutError'
     return {

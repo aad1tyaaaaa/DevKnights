@@ -16,11 +16,23 @@ class Settings(BaseSettings):
     npm_registry_concurrency: int = 10
     npm_registry_timeout_seconds: float = 5.0
     npm_registry_retries: int = 2
+    osv_api_url: str = "https://api.osv.dev"
+    osv_concurrency: int = 10
+    osv_timeout_seconds: float = 5.0
+    osv_retries: int = 2
     ai_ranking_enabled: bool = False
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-2.5-flash"
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
     gemini_timeout_seconds: float = 10.0
+    github_client_id: str | None = None
+    github_client_secret: SecretStr | None = None
+    github_session_secret: SecretStr | None = None
+    github_api_url: str = "https://api.github.com"
+    github_oauth_url: str = "https://github.com/login/oauth"
+    github_callback_url: str = "http://localhost:8000/api/github/auth/callback"
+    frontend_url: str = "http://localhost:3000"
+    secure_cookies: bool = False
     # Release registry (Phase 6): local Hardhat chain only. Read-only; no keys are needed.
     registry_rpc_url: str = "http://127.0.0.1:8545"
     registry_deployment_file: str = str(_REPO_ROOT / "contracts" / "deployments" / "localhost.json")
@@ -30,6 +42,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def github_auth_configured(self) -> bool:
+        return bool(self.github_client_id and self.github_client_secret and self.github_session_secret)
 
 
 settings = Settings()

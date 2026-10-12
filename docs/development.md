@@ -36,6 +36,17 @@ cp .env.example .env         # optional; PowerShell: Copy-Item .env.example .env
 
 Optional Gemini reranking is disabled by default. To enable it, set `PROVENYX_AI_RANKING_ENABLED=true` and `PROVENYX_GEMINI_API_KEY` in `backend/.env`. Never commit the key. Only generated finding summaries are sent to Gemini; lockfiles, dependency graphs, and raw evidence remain local. Invalid responses and provider failures fall back to deterministic ranking.
 
+### GitHub project access
+
+Create a GitHub OAuth App under **Settings → Developer settings → OAuth Apps**:
+
+- Homepage URL: `http://localhost:3000`
+- Authorization callback URL: `http://localhost:8000/api/github/auth/callback`
+
+Then set `PROVENYX_GITHUB_CLIENT_ID`, `PROVENYX_GITHUB_CLIENT_SECRET`, and `PROVENYX_GITHUB_SESSION_SECRET` in `backend/.env`. Generate the session secret with `openssl rand -hex 32`. Restart the backend, open <http://localhost:3000/github>, and connect GitHub.
+
+The OAuth token is AES-GCM encrypted in an HTTP-only cookie and expires after eight hours. Provenyx uses it only for read requests: listing accessible repositories, discovering `package-lock.json` files, and fetching the selected lockfile. GitHub's classic `repo` OAuth scope is broader than read-only because OAuth Apps do not offer a private-repository read-only scope; use a dedicated OAuth App and review that tradeoff before production deployment.
+
 ## 2. Start the FastAPI backend
 
 ```bash
@@ -86,6 +97,8 @@ In VS Code: **Provenyx: Check Backend Connection**, or look at *Backend* in the 
 In the Extension Development Host (opened on `demo/sample-project`): **Provenyx: Scan Dependencies** → confirm **Send to Provenyx API**. Expect: “Lockfile received. Dependency analysis has started.” and *Last scan: Accepted* in the sidebar.
 
 From the dashboard: open <http://localhost:3000/scan/new>, choose `demo/sample-project/package-lock.json`, tick the consent box, and click **Start scan**.
+
+From GitHub: open <http://localhost:3000/github>, connect an account, choose **Find lockfiles** on a repository, and analyze one of the discovered lockfiles. Repository code is never cloned or executed.
 
 Without VS Code (Git Bash / macOS / Linux):
 

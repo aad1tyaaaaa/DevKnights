@@ -104,8 +104,8 @@
         },
         "provenyx.autoScanEnabled": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "When a `package-lock.json` changes, offer to scan it. You are still asked to confirm before anything is sent to the API."
+          "default": true,
+          "markdownDescription": "When a `package-lock.json` is created or changes, start the scan flow automatically. You are still asked to confirm before anything is sent to the API."
         }
       }
     }

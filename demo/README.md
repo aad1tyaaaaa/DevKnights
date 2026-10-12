@@ -10,7 +10,7 @@
 2. Press F5 at the repository root — the Extension Development Host opens this folder.
 3. Run **Provenyx: Scan Dependencies** and confirm.
 
-Expected result: the scan completes with one package, `ms@2.1.3`, plus its npm registry metadata. The first scan of a project has no baseline, so it reports no findings.
+Expected result: the scan completes with one package, `ms@2.1.3`, plus its npm registry metadata. The first scan has no change findings, but exact-version OSV advisory checks still run.
 
 ## Other demo files
 

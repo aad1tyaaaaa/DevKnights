@@ -72,7 +72,7 @@ Every answer comes with its evidence, and Provenyx is explicit about what it doe
 
 1. In VS Code you run **Provenyx: Scan Dependencies**. The extension finds `package-lock.json`, checks it locally, and asks for consent before sending anything. It names the destination URL, and only the lockfile is sent.
 2. The backend stores a snapshot and analyses it in the background. It parses the lockfile, builds a dependency graph that keeps multiple installed versions distinct, and fetches public npm metadata with bounded concurrency, caching, timeouts and retries.
-3. If the project has been scanned before, the new graph is compared with the latest completed scan, and the detection rules turn the differences into findings with evidence, severity, confidence, priority and dependency paths.
+3. Every exact package version is checked against public OSV advisories. If the project has been scanned before, the new graph is also compared with the latest completed scan for suspicious changes.
 4. The extension follows the scan to completion and lists the findings in the sidebar. Clicking a finding opens it in the dashboard.
 5. In the dashboard you can explore the graph, read the evidence, and **verify a release** against the on-chain registry.
 
@@ -84,7 +84,7 @@ Every answer comes with its evidence, and Provenyx is explicit about what it doe
 - **Findings sidebar.** Shows the project, backend connection, last scan status, and findings sorted by severity and priority. Tooltips include the explanation, confidence, priority and dependency path.
 - **Provenyx: Open Dashboard.** Opens the dashboard, or the exact scan or finding when you click a sidebar item.
 - **Provenyx: Check Backend Connection.**
-- **Optional lockfile watcher** (`provenyx.autoScanEnabled`, off by default). When the lockfile changes it offers a scan once, even if the file is written several times in a row, and still asks for consent.
+- **Automatic lockfile watcher** (`provenyx.autoScanEnabled`, on by default). Creation or changes start one debounced scan flow, which still asks for consent before sending anything.
 - Handles an offline backend, timeouts and missing lockfiles without crashing. No telemetry.
 
 ### Web dashboard
@@ -118,7 +118,7 @@ Every answer comes with its evidence, and Provenyx is explicit about what it doe
 
 ## Detection rules
 
-A rule fires only when there is a **baseline**, meaning an earlier completed scan of the same project. The first scan of a project establishes that baseline.
+Known-vulnerability checks run on the first scan. Change-based rules require a **baseline**, meaning an earlier completed scan of the same project.
 
 | Rule | Fires when | Severity | Confidence | Priority |
 |---|---|---|---|---|
@@ -126,6 +126,7 @@ A rule fires only when there is a **baseline**, meaning an earlier completed sca
 | `dependency-expansion` | An existing package gained new dependency edges | low | high | 35 + 5 per new edge (max 60) |
 | `unusual-release-timing` | An upgraded version was published within 1 hour of its predecessor (npm release times) | low | medium | 45 |
 | `publisher-change` | npm identifies a different release-specific publisher for the upgraded version | medium | high | 60 |
+| `known-vulnerability` | OSV matches the exact installed npm package and version | OSV-derived | high | 55–95 |
 
 Severity (impact), confidence (how sure the rule is) and priority (0–100, for ordering) are independent. Every finding has at least one piece of evidence: its source (`lockfile`, `npm-registry`), the field, the value, and when it was observed. Findings are **leads to investigate, not proof of compromise**, and a normal upgrade is not flagged as high risk.
 
@@ -305,8 +306,8 @@ The full schemas are in [docs/api-contract.md](docs/api-contract.md). Interactiv
 |---|---|---|
 | VS Code | `provenyx.apiBaseUrl` | `http://localhost:8000` |
 | VS Code | `provenyx.dashboardUrl` | `http://localhost:3000` |
-| VS Code | `provenyx.autoScanEnabled` | `false` |
-| Backend (`backend/.env`) | `PROVENYX_CORS_ORIGINS`, `PROVENYX_MAX_SCAN_BYTES`, `PROVENYX_DATABASE_URL`, `PROVENYX_NPM_REGISTRY_*`, `PROVENYX_REGISTRY_RPC_URL`, `PROVENYX_REGISTRY_ADDRESS` | See `backend/.env.example` |
+| VS Code | `provenyx.autoScanEnabled` | `true` |
+| Backend (`backend/.env`) | `PROVENYX_CORS_ORIGINS`, `PROVENYX_MAX_SCAN_BYTES`, `PROVENYX_DATABASE_URL`, `PROVENYX_NPM_REGISTRY_*`, `PROVENYX_GITHUB_*`, `PROVENYX_REGISTRY_RPC_URL`, `PROVENYX_REGISTRY_ADDRESS` | See `backend/.env.example` |
 | Frontend (`frontend/.env.local`) | `NEXT_PUBLIC_PROVENYX_API_URL` | `http://localhost:8000` |
 
 ## Project status
@@ -326,7 +327,7 @@ All eight phases are implemented and verified. Details are in [progress.md](prog
 
 ## Limitations and future work
 
-- **Detection is narrow.** There are three rules, and they compare against a baseline only. Next candidates: npm provenance and Sigstore status as evidence, maintainer-change history, install-script introduction, and OSV advisories.
+- **Detection remains focused.** OSV advisories work without a baseline; four behavioral rules compare against prior scans. Next candidates include npm provenance, maintainer-history changes, and install-script introduction.
 - **The registry is minimal.** It has one owner, write-once records, and runs only on a local chain. Next: multi-signer approvals (for example 2 of N team members), revocation, and a public testnet.
 - **The backend is self-hosted.** The Marketplace hosts only the extension. A hosted API needs authentication and privacy terms.
 - **npm only.** pnpm, Yarn and other ecosystems are future work.

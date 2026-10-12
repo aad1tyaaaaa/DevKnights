@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FilePlus2, History, LayoutDashboard, Settings } from 'lucide-react'
+import { FilePlus2, GitFork, History, LayoutDashboard, Settings } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/github', label: 'GitHub projects', icon: GitFork },
   { href: '/scan/new', label: 'New scan', icon: FilePlus2 },
   { href: '/scans', label: 'Scans', icon: History },
   { href: '/settings', label: 'Settings', icon: Settings },

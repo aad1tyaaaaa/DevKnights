@@ -10,6 +10,25 @@ export interface ScanAccepted {
   message: string
 }
 
+export interface GitHubAuthStatus {
+  configured: boolean
+  connected: boolean
+  login: string | null
+  avatar_url: string | null
+}
+
+export interface GitHubRepository {
+  id: number
+  name: string
+  full_name: string
+  private: boolean
+  description: string | null
+  default_branch: string
+  html_url: string
+  updated_at: string
+  owner_avatar_url: string | null
+}
+
 export interface ScanSummary {
   packages: number
   direct: number

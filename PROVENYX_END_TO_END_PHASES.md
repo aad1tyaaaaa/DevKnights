@@ -118,7 +118,7 @@ Let developers scan dependencies without leaving VS Code.
 - Validate JSON; show clear errors for missing or invalid files.
 - Connect to configurable FastAPI URL with timeouts and error handling.
 - Request consent before transmitting lockfiles to a remote API.
-- Settings: `provenyx.apiBaseUrl`, `provenyx.dashboardUrl`, `provenyx.autoScanEnabled` (default false).
+- Settings: `provenyx.apiBaseUrl`, `provenyx.dashboardUrl`, `provenyx.autoScanEnabled` (default true).
 - Optional debounced file watcher on `**/package-lock.json`, avoiding duplicate scans.
 - Show real scan status and findings, never fabricated risk counts.
 
@@ -175,7 +175,7 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 | Unusual release timing | npm release timestamps | Requires sufficient history |
 | Trusted manifest mismatch | Approved hash vs current canonical manifest | Deferred to Phase 6 verification |
 | Release publisher change | Version-specific npm `_npmUser.name` | Omitted when either release lacks publisher evidence |
-| Known vulnerability (optional) | OSV advisory | Separate from anomaly detection |
+| Known vulnerability | Exact package/version match from OSV | Runs on first and subsequent scans |
 
 ### Tasks
 - Create deterministic, documented scoring for investigation priority.
@@ -266,7 +266,7 @@ Verify that current release evidence matches a previously approved anchored mani
 | ✅ | Benign update does not trigger unjustified high risk. | Omkar |
 | ✅ | Labeled synthetic suspicious fixture triggers expected rule. | Omkar |
 | ✅ | Missing blockchain record is not treated as mismatch (unit test + live chain). | Omkar |
-| ✅ | Watcher is debounced and respects user consent (automated: 3 rapid writes → 1 prompt; declining sends nothing; off by default). | Aaditya |
+| ✅ | Watcher is enabled by default, debounced, and respects user consent (3 rapid writes → 1 consent dialog; declining sends nothing). | Aaditya |
 | ✅ | No dependency scripts execute. | Omkar |
 | ✅ | VSIX installs in a clean VS Code profile. | Aaditya |
 

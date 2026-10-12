@@ -10,6 +10,7 @@ app = FastAPI(title="Provenyx API", version=__version__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )

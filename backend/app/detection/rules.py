@@ -5,11 +5,66 @@ from datetime import datetime, timedelta
 
 import networkx as nx
 
+from app.detection.osv import OsvAdvisory
 from app.graph.comparison import compare_graphs
 from app.models.schemas import Finding, FindingEvidence, GraphNode, ScanGraph
 
 
 FINDING_NAMESPACE = uuid.UUID("84112ff9-ef11-4bee-9be8-592a1230eff8")
+
+
+def detect_known_vulnerabilities(
+    current: ScanGraph,
+    *,
+    advisories: dict[tuple[str, str], tuple[OsvAdvisory, ...] | None],
+    observed_at: datetime,
+) -> list[Finding]:
+    findings: list[Finding] = []
+    for node in current.nodes:
+        matches = advisories.get((node.name, node.version))
+        if not matches:
+            continue
+        severity, priority = _advisory_risk(matches)
+        identifiers = sorted({identifier for advisory in matches for identifier in (advisory.id, *advisory.aliases)})
+        findings.append(
+            Finding(
+                id=_finding_id(current.scan_id, "known-vulnerability", node.id),
+                rule_id="known-vulnerability",
+                package=node.name,
+                version=node.version,
+                severity=severity,
+                confidence="high",
+                priority_score=priority,
+                title=f"Known vulnerability advisory ({len(matches)})",
+                explanation=(
+                    f"OSV reports {len(matches)} advisory match(es) for the exact installed release {node.id}. "
+                    "Review the advisory details and upgrade guidance; presence in OSV does not prove exploitation."
+                ),
+                evidence=[
+                    FindingEvidence(
+                        source="osv",
+                        field="advisories",
+                        value={
+                            "package": node.name,
+                            "version": node.version,
+                            "identifiers": identifiers,
+                            "advisories": [
+                                {
+                                    "id": advisory.id,
+                                    "aliases": list(advisory.aliases),
+                                    "summary": advisory.summary,
+                                    "severity": advisory.severity,
+                                }
+                                for advisory in matches
+                            ],
+                        },
+                        observed_at=observed_at,
+                    )
+                ],
+                paths=_dependency_paths(current, node.id),
+            )
+        )
+    return sorted(findings, key=lambda finding: (-finding.priority_score, finding.package, finding.version))
 
 
 def detect_graph_changes(
@@ -231,6 +286,19 @@ def _dependency_paths(graph: ScanGraph, target_id: str) -> list[list[str]]:
             continue
         paths.append(["root", *path])
     return paths
+
+
+def _advisory_risk(advisories: tuple[OsvAdvisory, ...]) -> tuple[str, int]:
+    severities = {advisory.severity for advisory in advisories}
+    if "critical" in severities:
+        return "high", 95
+    if "high" in severities:
+        return "high", 90
+    if severities & {"medium", "moderate"}:
+        return "medium", 75
+    if "low" in severities:
+        return "low", 55
+    return "medium", 65
 
 
 def _finding_id(scan_id: str, rule_id: str, node_id: str) -> str:
