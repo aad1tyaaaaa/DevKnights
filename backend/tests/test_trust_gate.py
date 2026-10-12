@@ -6,6 +6,7 @@ import httpx
 from app.detection.osv import OsvClient
 from app.gate import COMMENT_MARKER, TrustGate, _load_lockfile
 from app.parsers.npm_registry import NpmRegistryClient
+from tests.fakes import osv_transport
 
 
 def lockfile(packages: dict[str, dict], root_deps: dict[str, str]) -> dict:
@@ -45,7 +46,7 @@ RELEASES = {
 }
 
 
-def make_gate(requested: list[str] | None = None, *, osv_payload: dict | None = None) -> TrustGate:
+def make_gate(requested: list[str] | None = None, *, advisories: dict | None = None) -> TrustGate:
     def registry(request: httpx.Request) -> httpx.Response:
         if requested is not None:
             requested.append(request.url.path)
@@ -54,7 +55,7 @@ def make_gate(requested: list[str] | None = None, *, osv_payload: dict | None = 
         payload = RELEASES.get(request.url.path)
         return httpx.Response(200, json=payload) if payload is not None else httpx.Response(404)
 
-    osv = OsvClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=osv_payload or {})), retries=0)
+    osv = OsvClient(transport=osv_transport(advisories), retries=0)
     return TrustGate(NpmRegistryClient(transport=httpx.MockTransport(registry), retries=0), osv=osv)
 
 
@@ -105,8 +106,8 @@ def test_fail_threshold_never_downgrades_failures_to_warnings():
 
 
 def test_known_vulnerability_in_a_new_release_fails_at_medium_threshold():
-    advisory = {"vulns": [{"id": "GHSA-xxxx", "aliases": ["CVE-2026-1"], "database_specific": {"severity": "MODERATE"}}]}
-    report = asyncio.run(make_gate(osv_payload=advisory).evaluate(HEAD, BASE, fail_on="medium"))
+    advisory = {"id": "GHSA-xxxx", "aliases": ["CVE-2026-1"], "database_specific": {"severity": "MODERATE"}}
+    report = asyncio.run(make_gate(advisories={("chalk", "5.0.0"): [advisory]}).evaluate(HEAD, BASE, fail_on="medium"))
 
     chalk = next(release for release in report.releases if release.package == "chalk")
     assert chalk.verdict == "fail"

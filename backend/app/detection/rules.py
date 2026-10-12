@@ -26,6 +26,8 @@ def detect_known_vulnerabilities(
             continue
         severity, priority = _advisory_risk(matches)
         identifiers = sorted({identifier for advisory in matches for identifier in (advisory.id, *advisory.aliases)})
+        # OpenSSF "MAL-" records report a malicious package, not a bug in a legitimate one.
+        malicious = any(advisory.id.startswith("MAL-") for advisory in matches)
         findings.append(
             Finding(
                 id=_finding_id(current.scan_id, "known-vulnerability", node.id),
@@ -35,9 +37,11 @@ def detect_known_vulnerabilities(
                 severity=severity,
                 confidence="high",
                 priority_score=priority,
-                title=f"Known vulnerability advisory ({len(matches)})",
+                title="Reported malicious package" if malicious else f"Known vulnerability advisory ({len(matches)})",
                 explanation=(
-                    f"OSV reports {len(matches)} advisory match(es) for the exact installed release {node.id}. "
+                    f"OSV lists {node.id} in a malicious-package report. Remove it and treat machines that installed it as exposed."
+                    if malicious
+                    else f"OSV reports {len(matches)} advisory match(es) for the exact installed release {node.id}. "
                     "Review the advisory details and upgrade guidance; presence in OSV does not prove exploitation."
                 ),
                 evidence=[
@@ -202,7 +206,7 @@ def detect_unusual_release_timing(
                     title="Release followed its predecessor unusually quickly",
                     explanation=(
                         f"npm reports {node.id} was published {int(interval.total_seconds())} seconds after "
-                        f"{node.name}@{previous_version}. The one-hour threshold is an investigation heuristic, "
+                        f"{node.name}@{previous_version}. The fixed one-hour threshold is an experimental heuristic, "
                         "not evidence that the release is malicious."
                     ),
                     evidence=[
@@ -491,7 +495,14 @@ def detect_deprecated_releases(
     return findings
 
 
+MAX_DEPENDENCY_PATHS = 10
+
+
 def _dependency_paths(graph: ScanGraph, target_id: str) -> list[list[str]]:
+    """Shortest path from each direct dependency that reaches the target, capped at MAX_DEPENDENCY_PATHS.
+
+    One shortest path per direct dependency explains exposure without enumerating every route.
+    """
     if target_id not in {node.id for node in graph.nodes}:
         return []
     dependency_graph = nx.DiGraph((edge.source, edge.target) for edge in graph.edges)
@@ -504,6 +515,8 @@ def _dependency_paths(graph: ScanGraph, target_id: str) -> list[list[str]]:
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             continue
         paths.append(["root", *path])
+        if len(paths) == MAX_DEPENDENCY_PATHS:
+            break
     return paths
 
 

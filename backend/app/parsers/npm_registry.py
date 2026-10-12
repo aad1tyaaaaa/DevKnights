@@ -50,6 +50,7 @@ class NpmRegistryClient:
     async def fetch_many(self, releases: Iterable[tuple[str, str]]) -> dict[tuple[str, str], RegistryMetadata]:
         unique_releases = tuple(dict.fromkeys(releases))
         missing = [release for release in unique_releases if release not in self._cache]
+        fetched: dict[tuple[str, str], RegistryMetadata] = {}
         if missing:
             semaphore = asyncio.Semaphore(self._concurrency)
             async with httpx.AsyncClient(
@@ -61,8 +62,10 @@ class NpmRegistryClient:
                 results = await asyncio.gather(
                     *(self._fetch_one(client, semaphore, package, version) for package, version in missing)
                 )
-            self._cache.update({(result.package, result.version): result for result in results})
-        return {release: self._cache[release] for release in unique_releases}
+            fetched = {(result.package, result.version): result for result in results}
+            # Only successful lookups are cached; a transient failure is retried on the next scan.
+            self._cache.update({release: result for release, result in fetched.items() if result.status == "available"})
+        return {release: fetched.get(release) or self._cache[release] for release in unique_releases}
 
     async def fetch_release_times(self, package: str) -> dict[str, str] | None:
         if package in self._release_times_cache:
@@ -92,17 +95,13 @@ class NpmRegistryClient:
                     return result
                 except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError):
                     if attempt == self._retries:
-                        self._release_times_cache[package] = None
                         return None
                 except httpx.HTTPStatusError as exc:
                     if attempt == self._retries or exc.response.status_code < 500:
-                        self._release_times_cache[package] = None
                         return None
                 except (ValueError, TypeError):
-                    self._release_times_cache[package] = None
                     return None
                 await asyncio.sleep(0.1 * (attempt + 1))
-        self._release_times_cache[package] = None
         return None
 
     async def fetch_release_times_many(self, packages: Iterable[str]) -> dict[str, dict[str, str] | None]:

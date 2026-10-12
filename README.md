@@ -125,7 +125,7 @@ Known-vulnerability checks run on the first scan. Change-based rules require a *
 |---|---|---|---|---|
 | `new-dependency` | A package is present now but was not in the baseline | info | high | 30 if direct, 20 if transitive |
 | `dependency-expansion` | An existing package gained new dependency edges | low | high | 35 + 5 per new edge (max 60) |
-| `unusual-release-timing` | An upgraded version was published within 1 hour of its predecessor (npm release times) | low | medium | 45 |
+| `unusual-release-timing` | An upgraded version was published within 1 hour of its predecessor (npm release times). **Experimental:** a fixed threshold, not each package's own release cadence | low | medium | 45 |
 | `publisher-change` | npm identifies a different release-specific publisher for the upgraded version | medium | high | 60 |
 | `known-vulnerability` | OSV matches the exact installed npm package and version | OSV-derived | high | 55–95 |
 | `install-script-added` | An upgraded version runs an install lifecycle script (`preinstall`/`install`/`postinstall`) its predecessor did not | high | high | 85 |
@@ -202,7 +202,7 @@ npm's own provenance (Sigstore) records **who built** a package. Provenyx record
 | `no_record` | Nothing has been anchored for this release. This is a gap in the evidence, **not** a risk signal. |
 | `unavailable` | The chain or the metadata could not be reached, so nothing is concluded. |
 
-The registry runs on a **local Hardhat development chain only**. No public network, wallet or cryptocurrency is involved.
+The registry runs on a **local Hardhat development chain only**. No public network, wallet or cryptocurrency is involved. Trust is only as strong as the registry owner: a single key anchors records, and nothing is externally governed. A match proves consistency with what that owner approved, not that the release is harmless.
 
 ## Safety and privacy principles
 
@@ -362,8 +362,12 @@ The full schemas are in [docs/api-contract.md](docs/api-contract.md). Interactiv
 | VS Code | `provenyx.apiBaseUrl` | `http://localhost:8000` |
 | VS Code | `provenyx.dashboardUrl` | `http://localhost:3000` |
 | VS Code | `provenyx.autoScanEnabled` | `true` |
+| VS Code | `provenyx.apiKey` | empty (local backend) |
+| Backend (`backend/.env`) | `PROVENYX_API_KEY` (shared access key; unset = open, local only), `PROVENYX_SUBMISSION_RATE_LIMIT_PER_MINUTE` | unset, `30` |
 | Backend (`backend/.env`) | `PROVENYX_CORS_ORIGINS`, `PROVENYX_MAX_SCAN_BYTES`, `PROVENYX_DATABASE_URL`, `PROVENYX_NPM_REGISTRY_*`, `PROVENYX_GITHUB_*`, `PROVENYX_REGISTRY_RPC_URL`, `PROVENYX_REGISTRY_ADDRESS` | See `backend/.env.example` |
-| Frontend (`frontend/.env.local`) | `NEXT_PUBLIC_PROVENYX_API_URL` | `http://localhost:8000` |
+| Frontend (`frontend/.env.local`) | `NEXT_PUBLIC_PROVENYX_API_URL`, `NEXT_PUBLIC_PROVENYX_API_KEY` | `http://localhost:8000`, unset |
+
+**Deploying beyond your machine:** scans are not owned by users yet, so anyone who can reach an open backend can list and read every scan. Set `PROVENYX_API_KEY` (and the matching dashboard and extension settings) before exposing it. This is one shared key for a demo deployment, not per-user isolation: the dashboard's copy ships in its browser bundle. Scan and trust-gate submissions are rate limited per client address.
 
 ## Project status
 

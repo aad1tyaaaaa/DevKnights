@@ -123,3 +123,21 @@ def test_registry_history_batch_deduplicates_packages():
 
     assert set(result) == {"a", "b"}
     assert result["a"] == {"1.0.0": "2026-01-01T10:00:00Z"}
+
+def test_registry_failures_are_retried_on_the_next_lookup_instead_of_cached():
+    outage = True
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503) if outage else httpx.Response(200, json={"_npmUser": {"name": "alice"}, "scripts": {"postinstall": "x"}})
+
+    async def scenario():
+        nonlocal outage
+        client = NpmRegistryClient(transport=httpx.MockTransport(handler), retries=0)
+        first = (await client.fetch_many([("pkg", "1.0.0")]))[("pkg", "1.0.0")]
+        outage = False
+        second = (await client.fetch_many([("pkg", "1.0.0")]))[("pkg", "1.0.0")]
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    assert first.status == "unavailable"
+    assert (second.status, second.publisher, second.install_scripts) == ("available", "alice", ("postinstall",))

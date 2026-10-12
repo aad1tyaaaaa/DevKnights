@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PROVENYX_", env_file=".env", extra="ignore")
 
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Shared access key (X-Provenyx-Key header). Unset = no check: only for a trusted local machine.
+    api_key: SecretStr | None = None
+    # Scan and trust-gate submissions per client address per minute; 0 disables the limit.
+    submission_rate_limit_per_minute: int = 30
     max_scan_bytes: int = 10 * 1024 * 1024
     database_url: str = "sqlite:///./provenyx.db"
     npm_registry_url: str = "https://registry.npmjs.org"

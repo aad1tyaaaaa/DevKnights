@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.api.routes import get_scan_service
 from app.detection.osv import OsvClient
+from tests.fakes import osv_transport
 from app.main import app
 from app.models.database import ScanRepository
 from app.parsers.npm_registry import NpmRegistryClient
@@ -135,24 +136,13 @@ def test_first_scan_reports_exact_version_osv_advisory(tmp_path: Path):
         ),
         retries=0,
     )
-    osv = OsvClient(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(
-                200,
-                json={
-                    "vulns": [
-                        {
-                            "id": "GHSA-test-1234",
-                            "aliases": ["CVE-2026-0001"],
-                            "summary": "Synthetic prototype-pollution advisory",
-                            "database_specific": {"severity": "HIGH"},
-                        }
-                    ]
-                },
-            )
-        ),
-        retries=0,
-    )
+    advisory = {
+        "id": "GHSA-test-1234",
+        "aliases": ["CVE-2026-0001"],
+        "summary": "Synthetic prototype-pollution advisory",
+        "database_specific": {"severity": "HIGH"},
+    }
+    osv = OsvClient(transport=osv_transport({("minimist", "1.2.5"): [advisory]}), retries=0)
     service = ScanService(
         ScanRepository(f"sqlite:///{tmp_path / 'osv.db'}"),
         npm,

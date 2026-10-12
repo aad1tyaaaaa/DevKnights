@@ -28,9 +28,12 @@ export function apiBaseUrl(): string {
 
 async function request<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
   const base = apiBaseUrl();
+  const headers = new Headers(init.headers);
+  const apiKey = vscode.workspace.getConfiguration('provenyx').get<string>('apiKey', '');
+  if (apiKey) headers.set('X-Provenyx-Key', apiKey);
   let res: Response;
   try {
-    res = await fetch(base + path, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    res = await fetch(base + path, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     const timedOut = err instanceof Error && err.name === 'TimeoutError';
     throw new ApiError(

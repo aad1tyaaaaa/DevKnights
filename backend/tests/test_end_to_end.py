@@ -78,3 +78,37 @@ def test_validation_errors_do_not_echo_untrusted_lockfile_content():
 
     assert response.status_code == 422
     assert marker not in response.text
+
+def test_baseline_is_never_a_scan_created_later(tmp_path: Path):
+    """Scans finishing out of order must not compare an older lockfile against a newer one."""
+    import asyncio
+
+    registry = NpmRegistryClient(transport=httpx.MockTransport(lambda request: httpx.Response(404)), retries=0)
+    service = ScanService(ScanRepository(f"sqlite:///{tmp_path / 'order.db'}"), registry)
+    baseline = json.loads((FIXTURES / "baseline-package-lock.json").read_text())
+    suspicious = json.loads((FIXTURES / "suspicious-update-package-lock.json").read_text())
+
+    older_id = service.create_scan(baseline, "demo")
+    newer_id = service.create_scan(suspicious, "demo")
+    asyncio.run(service.analyze_scan(newer_id))  # the newer scan finishes first...
+    asyncio.run(service.analyze_scan(older_id))  # ...then the older one
+
+    older = service.repository.get(older_id)
+    assert older.status == "complete"
+    assert not {f["rule_id"] for f in service.repository.get_findings(older_id)} & {"new-dependency", "dependency-expansion"}
+    assert any("No earlier completed scan" in warning for warning in older.warnings)
+
+
+def test_scans_interrupted_by_a_restart_are_resumed(tmp_path: Path):
+    import asyncio
+
+    registry = NpmRegistryClient(transport=httpx.MockTransport(lambda request: httpx.Response(404)), retries=0)
+    service = ScanService(ScanRepository(f"sqlite:///{tmp_path / 'restart.db'}"), registry)
+    baseline = json.loads((FIXTURES / "baseline-package-lock.json").read_text())
+    accepted = service.create_scan(baseline, "demo")
+    stuck = service.create_scan(baseline, "demo")
+    service.repository.set_analyzing(stuck)  # the process died mid-analysis
+
+    assert asyncio.run(service.recover_interrupted()) == [accepted, stuck]
+    assert {service.repository.get(scan_id).status for scan_id in (accepted, stuck)} == {"complete"}
+    assert service.repository.list_unfinished() == []

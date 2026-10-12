@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { API_BASE_URL } from '@/lib/config'
+import { API_BASE_URL, API_KEY } from '@/lib/config'
 
 /**
  * `unavailable` means the API does not offer this resource (unknown route, unknown id, or not implemented yet).
@@ -16,7 +16,9 @@ export type Result<T> =
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<Result<T>> {
   let res: Response
   try {
-    res = await fetch(API_BASE_URL + path, { ...init, credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000) })
+    const headers = new Headers(init?.headers)
+    if (API_KEY) headers.set('X-Provenyx-Key', API_KEY)
+    res = await fetch(API_BASE_URL + path, { ...init, headers, credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000) })
   } catch (err) {
     const timedOut = err instanceof Error && err.name === 'TimeoutError'
     return {

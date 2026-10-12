@@ -6,7 +6,7 @@ import { ExternalLink, FileCode2, GitFork, LoaderCircle, Lock, LogOut, Search } 
 import { primaryButton, secondaryButton } from '@/components/page-header'
 import { EmptyState, ErrorState, LoadingState } from '@/components/states'
 import { apiFetch, apiPost, useApi } from '@/lib/api'
-import { API_BASE_URL } from '@/lib/config'
+import { API_BASE_URL, API_KEY } from '@/lib/config'
 import type { GitHubAuthStatus, GitHubRepository, ScanAccepted } from '@/lib/types'
 
 type Discovery =
@@ -57,7 +57,7 @@ export function GitHubProjects() {
   }
 
   async function disconnect() {
-    await fetch(`${API_BASE_URL}/api/github/auth/logout`, { method: 'POST', credentials: 'include' })
+    await fetch(`${API_BASE_URL}/api/github/auth/logout`, { method: 'POST', credentials: 'include', headers: API_KEY ? { 'X-Provenyx-Key': API_KEY } : undefined })
     setDiscovery(null)
     reloadAuth()
   }

@@ -111,17 +111,33 @@ class ScanRepository:
                 ),
             )
 
-    def list_recent(self, limit: int = 50) -> list[ScanRow]:
+    def list_recent(self, limit: int = 50, offset: int = 0) -> list[ScanRow]:
         with self._sessions() as session:
             return list(
                 session.scalars(
                     select(ScanRow)
                     .order_by(ScanRow.created_at.desc())
-                    .limit(max(1, min(limit, 100)))
+                    .limit(max(1, min(limit, 200)))
+                    .offset(max(0, offset))
                 )
             )
 
-    def find_latest_complete(self, project_name: str, *, exclude_scan_id: str) -> ScanRow | None:
+    def list_unfinished(self) -> list[str]:
+        """Scans accepted or mid-analysis, oldest first: work a restart would otherwise strand."""
+        with self._sessions() as session:
+            return list(
+                session.scalars(
+                    select(ScanRow.scan_id)
+                    .where(ScanRow.status.in_(("accepted", "analyzing")))
+                    .order_by(ScanRow.created_at)
+                )
+            )
+
+    def find_latest_complete(self, project_name: str, *, before: datetime, exclude_scan_id: str) -> ScanRow | None:
+        """The most recent completed scan of the project created strictly before `before`.
+
+        Requiring an earlier scan keeps comparisons pointing forward in time even when scans finish out of order.
+        """
         with self._sessions() as session:
             return session.scalar(
                 select(ScanRow)
@@ -129,6 +145,7 @@ class ScanRepository:
                     ScanRow.project_name == project_name,
                     ScanRow.status == "complete",
                     ScanRow.scan_id != exclude_scan_id,
+                    ScanRow.created_at < before,
                 )
                 .order_by(ScanRow.created_at.desc())
                 .limit(1)

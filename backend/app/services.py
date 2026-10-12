@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import asdict
 from typing import Any
@@ -28,6 +29,9 @@ from app.models.schemas import (
 )
 from app.parsers.lockfile import ParsedLockfile, ParsedPackage, parse_lockfile
 from app.parsers.npm_registry import NpmRegistryClient, RegistryMetadata
+
+
+logger = logging.getLogger("provenyx.scan")
 
 
 class ScanService:
@@ -72,8 +76,21 @@ class ScanService:
                 findings.extend(
                     detect_known_vulnerabilities(scan_graph, advisories=advisories, observed_at=row.created_at)
                 )
+            baseline_row = (
+                self.repository.find_latest_complete(project_name, before=row.created_at, exclude_scan_id=scan_id)
+                if project_name
+                else None
+            )
+            if not project_name:
+                analysis_warnings.append(
+                    "The lockfile has no project name, so no baseline was selected; change-based rules did not run."
+                )
+            elif baseline_row is None or baseline_row.graph is None:
+                analysis_warnings.append(
+                    f"No earlier completed scan of {project_name!r} exists, so change-based rules did not run; "
+                    "scan again after a dependency update to compare."
+                )
             if project_name:
-                baseline_row = self.repository.find_latest_complete(project_name, exclude_scan_id=scan_id)
                 if baseline_row is not None and baseline_row.graph is not None:
                     baseline_graph = ScanGraph.model_validate(baseline_row.graph)
                     findings.extend(
@@ -129,7 +146,17 @@ class ScanService:
                 warnings=analysis_warnings,
             )
         except Exception as exc:
+            # Full detail goes to the server log; the API only exposes the exception type.
+            logger.exception("Dependency analysis failed for scan %s", scan_id)
             self.repository.set_failed(scan_id, f"Dependency analysis failed: {type(exc).__name__}")
+
+    async def recover_interrupted(self) -> list[str]:
+        """Re-run scans a restart interrupted. Oldest first, so each finds its correct baseline."""
+        scan_ids = self.repository.list_unfinished()
+        for scan_id in scan_ids:
+            logger.info("Resuming interrupted scan %s", scan_id)
+            await self.analyze_scan(scan_id)
+        return scan_ids
 
     def compare_scans(self, baseline_scan_id: str, current_scan_id: str) -> ScanComparisonResponse:
         baseline_row = self.repository.get(baseline_scan_id)

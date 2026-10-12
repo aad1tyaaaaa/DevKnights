@@ -87,3 +87,43 @@ def test_graph_reports_unresolved_dependencies_without_inventing_nodes():
 
     assert graph.edges == ()
     assert graph.warnings == ("Could not resolve 'missing' declared by parent@1.0.0",)
+
+def test_aliased_root_dependency_is_marked_direct():
+    # "string-utils": "npm:lodash@4.17.21" installs lodash under the alias's folder.
+    parsed = parse_lockfile(
+        {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"dependencies": {"string-utils": "npm:lodash@4.17.21"}},
+                "node_modules/string-utils": {"name": "lodash", "version": "4.17.21"},
+            },
+        }
+    )
+
+    graph = build_dependency_graph(parsed)
+
+    assert [(node.id, node.direct) for node in graph.nodes] == [("lodash@4.17.21", True)]
+
+
+def test_every_relationship_type_between_two_packages_is_kept():
+    parsed = parse_lockfile(
+        {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"dependencies": {"plugin": "1.0.0"}},
+                "node_modules/plugin": {
+                    "version": "1.0.0",
+                    "dependencies": {"core": "^3.0.0"},
+                    "peerDependencies": {"core": "^3.0.0"},
+                },
+                "node_modules/core": {"version": "3.1.0"},
+            },
+        }
+    )
+
+    graph = build_dependency_graph(parsed)
+
+    assert [(edge.source, edge.target, edge.dependency_type) for edge in graph.edges] == [
+        ("plugin@1.0.0", "core@3.1.0", "prod"),
+        ("plugin@1.0.0", "core@3.1.0", "peer"),
+    ]

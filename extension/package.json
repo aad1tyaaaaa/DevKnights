@@ -96,6 +96,12 @@
           "format": "uri",
           "markdownDescription": "Base URL of the Provenyx API. Lockfiles are only sent here after you confirm each scan. Defaults to the local development backend."
         },
+        "provenyx.apiKey": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Access key for a Provenyx API started with `PROVENYX_API_KEY`. Leave empty for the local development backend."
+        },
         "provenyx.dashboardUrl": {
           "type": "string",
           "default": "http://localhost:3000",

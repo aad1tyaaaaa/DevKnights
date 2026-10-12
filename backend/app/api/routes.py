@@ -4,7 +4,7 @@ import secrets
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
@@ -13,6 +13,7 @@ from app import __version__
 from app.detection.ai_ranker import GeminiFindingRanker
 from app.detection.osv import OsvClient
 from app.core.config import settings
+from app.core.security import limit_submissions
 from app.gate import TrustGate
 from app.github import GitHubApiError, GitHubService
 from app.models.database import ScanRepository
@@ -221,7 +222,12 @@ async def github_repository_lockfiles(
         raise _github_error(exc)
 
 
-@router.post("/api/github/scans", response_model=ScanAccepted, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/api/github/scans",
+    response_model=ScanAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_submissions)],
+)
 async def create_github_scan(
     body: GitHubScanRequest,
     request: Request,
@@ -259,6 +265,7 @@ async def create_github_scan(
     response_model=ScanAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     responses={413: {"model": ErrorResponse}, 415: {"model": ErrorResponse}},
+    dependencies=[Depends(limit_submissions)],
 )
 async def create_scan(
     request: Request,
@@ -283,6 +290,7 @@ async def create_scan(
     "/api/gate",
     response_model=GateReport,
     responses={413: {"model": ErrorResponse}, 415: {"model": ErrorResponse}},
+    dependencies=[Depends(limit_submissions)],
 )
 async def evaluate_trust_gate(
     request: Request,
@@ -343,6 +351,8 @@ def get_scan(
 @router.get("/api/scans", response_model=list[ScanDetail])
 def list_scans(
     service: Annotated[ScanService, Depends(get_scan_service)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ScanDetail]:
     return [
         ScanDetail(
@@ -354,7 +364,7 @@ def list_scans(
             warnings=row.warnings,
             error=row.error,
         )
-        for row in service.repository.list_recent()
+        for row in service.repository.list_recent(limit, offset)
     ]
 
 
