@@ -34,6 +34,8 @@ pip install -r requirements.txt
 cp .env.example .env         # optional; PowerShell: Copy-Item .env.example .env
 ```
 
+Optional Gemini reranking is disabled by default. To enable it, set `PROVENYX_AI_RANKING_ENABLED=true` and `PROVENYX_GEMINI_API_KEY` in `backend/.env`. Never commit the key. Only generated finding summaries are sent to Gemini; lockfiles, dependency graphs, and raw evidence remain local. Invalid responses and provider failures fall back to deterministic ranking.
+
 ## 2. Start the FastAPI backend
 
 ```bash

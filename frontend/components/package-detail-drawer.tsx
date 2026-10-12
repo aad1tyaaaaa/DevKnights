@@ -60,11 +60,21 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               <div className="flex flex-wrap items-center gap-2">
                 <SeverityBadge severity={f.severity} />
                 <ConfidenceLabel confidence={f.confidence} />
-                <span className="text-xs tabular-nums text-ink-muted">Priority {f.priority_score}/100</span>
+                <span className="text-xs tabular-nums text-ink-muted">
+                  {f.ranking_source === 'gemini' && f.ai_priority_score != null ? `Gemini ${f.ai_priority_score}/100` : `Priority ${f.priority_score}/100`}
+                </span>
                 <span className="font-mono text-[11px] text-ink-muted">{f.rule_id}</span>
               </div>
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
               <p className="mt-2 text-sm leading-6 text-[#4f6e5d]">{f.explanation}</p>
+
+              {f.ranking_source === 'gemini' && f.ai_priority_score != null && (
+                <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-[#365b48]">
+                  <p className="font-semibold text-ink">Gemini ranking · {f.ai_priority_score}/100</p>
+                  <p className="mt-1">Deterministic rule score: {f.priority_score}/100</p>
+                  {f.ai_rationale && <p className="mt-2 leading-5">{f.ai_rationale}</p>}
+                </div>
+              )}
 
               <h4 className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Evidence</h4>
               <ul className="mt-2 flex flex-col gap-2">
@@ -110,6 +120,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
             ) : (
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
                 {node.registry.description && (<><dt className="text-ink-muted">Description</dt><dd className="text-ink">{node.registry.description}</dd></>)}
+                <dt className="text-ink-muted">Publisher</dt><dd className="text-ink">{node.registry.publisher ?? 'Unknown'}</dd>
                 <dt className="text-ink-muted">License</dt><dd className="text-ink">{node.registry.license ?? 'Unknown'}</dd>
                 {node.registry.published_at && (<><dt className="text-ink-muted">Published</dt><dd className="text-ink">{formatDate(node.registry.published_at)}</dd></>)}
                 {node.registry.deprecated && (<><dt className="text-ink-muted">Deprecated</dt><dd className="text-[#a36b0c]">{node.registry.deprecated}</dd></>)}

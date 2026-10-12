@@ -106,7 +106,7 @@ or change the provenyx.apiBaseUrl setting.`
     }
 
     const sorted = [...s.findings].sort(
-      (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || b.priority_score - a.priority_score,
+      (a, b) => effectivePriority(b) - effectivePriority(a) || SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
     );
     const group = new vscode.TreeItem(`Findings (${sorted.length})`, vscode.TreeItemCollapsibleState.Expanded) as Node;
     group.iconPath = new vscode.ThemeIcon('list-tree');
@@ -121,11 +121,21 @@ function findingItem(scanId: string, f: Finding): vscode.TreeItem {
   t.iconPath = SEVERITY_ICON[f.severity] ?? SEVERITY_ICON.info;
   const md = new vscode.MarkdownString();
   md.appendMarkdown(`**${f.title}**\n\n`);
-  md.appendText(`Severity: ${f.severity} · Confidence: ${f.confidence} · Priority: ${f.priority_score}/100 · Rule: ${f.rule_id}\n\n${f.explanation}`);
+  const ranking = f.ranking_source === 'gemini' && f.ai_priority_score != null
+    ? `Gemini: ${f.ai_priority_score}/100 · Rule score: ${f.priority_score}/100`
+    : `Priority: ${f.priority_score}/100`;
+  md.appendText(`Severity: ${f.severity} · Confidence: ${f.confidence} · ${ranking} · Rule: ${f.rule_id}\n\n${f.explanation}`);
+  if (f.ranking_source === 'gemini' && f.ai_rationale) md.appendText(`\n\nGemini rationale: ${f.ai_rationale}`);
   if (f.paths[0]) md.appendText(`\n\nPath: ${f.paths[0].join(' → ')}`);
   t.tooltip = md;
   t.command = openScan(scanId, f.id);
   return t;
+}
+
+function effectivePriority(finding: Finding): number {
+  return finding.ranking_source === 'gemini' && finding.ai_priority_score != null
+    ? finding.ai_priority_score
+    : finding.priority_score;
 }
 
 function openScan(scanId: string, findingId?: string): vscode.Command {

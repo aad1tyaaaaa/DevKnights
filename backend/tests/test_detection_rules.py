@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from app.detection.rules import detect_graph_changes, detect_unusual_release_timing
+from app.detection.rules import detect_graph_changes, detect_publisher_changes, detect_unusual_release_timing
 from app.models.schemas import GraphEdge, GraphNode, RegistryMetadataResponse, ScanGraph
 
 
@@ -8,14 +8,18 @@ OBSERVED_AT = datetime(2026, 10, 12, tzinfo=timezone.utc)
 UNKNOWN = RegistryMetadataResponse(status="unavailable", error="not fetched")
 
 
-def node(name: str, version: str, *, direct: bool = False) -> GraphNode:
+def node(name: str, version: str, *, direct: bool = False, publisher: str | None = None) -> GraphNode:
     return GraphNode(
         id=f"{name}@{version}",
         name=name,
         version=version,
         direct=direct,
         lockfile_paths=[f"node_modules/{name}"],
-        registry=UNKNOWN,
+        registry=(
+            RegistryMetadataResponse(status="available", publisher=publisher)
+            if publisher is not None
+            else UNKNOWN
+        ),
     )
 
 
@@ -65,6 +69,33 @@ def test_normal_version_only_upgrade_does_not_create_a_risk_finding():
     current = graph("current", [node("pkg", "2.0.0", direct=True)])
 
     assert detect_graph_changes(baseline, current, observed_at=OBSERVED_AT) == []
+
+
+def test_publisher_change_uses_release_specific_registry_evidence():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True, publisher="original")])
+    current = graph("current", [node("pkg", "2.0.0", direct=True, publisher="new-owner")])
+
+    findings = detect_publisher_changes(baseline, current, observed_at=OBSERVED_AT)
+
+    assert len(findings) == 1
+    assert findings[0].rule_id == "publisher-change"
+    assert findings[0].priority_score == 60
+    assert findings[0].evidence[0].value == {
+        "from_versions": ["1.0.0"],
+        "previous_publishers": ["original"],
+        "to_version": "2.0.0",
+        "current_publisher": "new-owner",
+    }
+    assert findings[0].paths == [["root", "pkg@2.0.0"]]
+
+
+def test_publisher_change_does_not_guess_when_evidence_is_missing_or_unchanged():
+    baseline = graph("baseline", [node("pkg", "1.0.0", direct=True, publisher="owner")])
+    missing = graph("missing", [node("pkg", "2.0.0", direct=True)])
+    unchanged = graph("unchanged", [node("pkg", "2.0.0", direct=True, publisher="owner")])
+
+    assert detect_publisher_changes(baseline, missing, observed_at=OBSERVED_AT) == []
+    assert detect_publisher_changes(baseline, unchanged, observed_at=OBSERVED_AT) == []
 
 
 def test_finding_ids_and_order_are_deterministic():

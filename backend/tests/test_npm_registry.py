@@ -17,6 +17,7 @@ def test_registry_client_selects_real_metadata_and_encodes_scoped_names():
                 "version": "1.2.3",
                 "description": "Scoped package",
                 "license": "MIT",
+                "_npmUser": {"name": "release-publisher", "email": "private@example.test"},
                 "dist": {"integrity": "sha512-registry"},
             },
         )
@@ -25,6 +26,7 @@ def test_registry_client_selects_real_metadata_and_encodes_scoped_names():
     result = asyncio.run(registry.fetch_many([("@scope/pkg", "1.2.3")]))[("@scope/pkg", "1.2.3")]
 
     assert result.status == "available"
+    assert result.publisher == "release-publisher"
     assert result.description == "Scoped package"
     assert result.dist_integrity == "sha512-registry"
     assert seen_paths == ["/%40scope%2Fpkg/1.2.3"]

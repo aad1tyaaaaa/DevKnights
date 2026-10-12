@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -15,6 +16,11 @@ class Settings(BaseSettings):
     npm_registry_concurrency: int = 10
     npm_registry_timeout_seconds: float = 5.0
     npm_registry_retries: int = 2
+    ai_ranking_enabled: bool = False
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com"
+    gemini_timeout_seconds: float = 10.0
     # Release registry (Phase 6): local Hardhat chain only. Read-only; no keys are needed.
     registry_rpc_url: str = "http://127.0.0.1:8545"
     registry_deployment_file: str = str(_REPO_ROOT / "contracts" / "deployments" / "localhost.json")

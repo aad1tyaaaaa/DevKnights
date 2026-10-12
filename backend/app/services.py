@@ -4,9 +4,10 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
+from app.detection.ai_ranker import AiRankingError, GeminiFindingRanker
 from app.graph.builder import build_dependency_graph
 from app.graph.comparison import compare_graphs
-from app.detection.rules import detect_graph_changes, detect_unusual_release_timing
+from app.detection.rules import detect_graph_changes, detect_publisher_changes, detect_unusual_release_timing
 from app.models.database import ScanRepository
 from app.models.schemas import (
     GraphEdge,
@@ -22,9 +23,16 @@ from app.parsers.npm_registry import NpmRegistryClient
 
 
 class ScanService:
-    def __init__(self, repository: ScanRepository, registry: NpmRegistryClient) -> None:
+    def __init__(
+        self,
+        repository: ScanRepository,
+        registry: NpmRegistryClient,
+        *,
+        finding_ranker: GeminiFindingRanker | None = None,
+    ) -> None:
         self.repository = repository
         self.registry = registry
+        self.finding_ranker = finding_ranker
 
     def create_scan(self, lockfile: dict[str, Any], project_name: str | None) -> str:
         scan_id = str(uuid.uuid4())
@@ -39,6 +47,7 @@ class ScanService:
         try:
             parsed = parse_lockfile(row.lockfile)
             graph = build_dependency_graph(parsed)
+            analysis_warnings = list(graph.warnings)
             metadata = await self.registry.fetch_many((package.name, package.version) for package in parsed.packages)
             package_evidence = _package_evidence(parsed.packages)
             nodes = []
@@ -79,6 +88,13 @@ class ScanService:
                         scan_graph,
                         observed_at=row.created_at,
                     )
+                    findings.extend(
+                        detect_publisher_changes(
+                            baseline_graph,
+                            scan_graph,
+                            observed_at=row.created_at,
+                        )
+                    )
                     comparison = compare_graphs(baseline_graph, scan_graph)
                     release_times = await self.registry.fetch_release_times_many(
                         change.name for change in comparison.version_changes
@@ -92,6 +108,14 @@ class ScanService:
                         )
                     )
                     findings.sort(key=lambda finding: (-finding.priority_score, finding.rule_id, finding.package))
+                    if findings and self.finding_ranker is not None:
+                        try:
+                            findings = await self.finding_ranker.rank(findings)
+                        except AiRankingError:
+                            analysis_warnings.append(
+                                "AI ranking was unavailable; deterministic priorities were retained"
+                            )
+            scan_graph = scan_graph.model_copy(update={"warnings": analysis_warnings})
             direct_count = sum(node.direct for node in nodes)
             summary = ScanSummary(
                 packages=len(nodes),
@@ -105,7 +129,7 @@ class ScanService:
                 summary=summary.model_dump(mode="json"),
                 graph=scan_graph.model_dump(mode="json", by_alias=True),
                 findings=[finding.model_dump(mode="json") for finding in findings],
-                warnings=list(graph.warnings),
+                warnings=analysis_warnings,
             )
         except Exception as exc:
             self.repository.set_failed(scan_id, f"Dependency analysis failed: {type(exc).__name__}")

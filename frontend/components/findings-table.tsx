@@ -12,7 +12,7 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
     () =>
       findings
         .filter((f) => filter === 'all' || f.severity === filter)
-        .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity) || b.priority_score - a.priority_score),
+        .sort((a, b) => effectivePriority(b) - effectivePriority(a) || SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)),
     [findings, filter],
   )
 
@@ -55,7 +55,10 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
                 <td className="px-5 py-4">
                   <SeverityBadge severity={f.severity} />
                   <div className="mt-1"><ConfidenceLabel confidence={f.confidence} /></div>
-                  <div className="text-xs tabular-nums text-ink-muted">Priority {f.priority_score}/100</div>
+                  <div className="text-xs tabular-nums text-ink-muted">
+                    {f.ranking_source === 'gemini' && f.ai_priority_score != null ? `Gemini ${f.ai_priority_score}/100` : `Priority ${f.priority_score}/100`}
+                  </div>
+                  {f.ranking_source === 'gemini' && <div className="text-[11px] tabular-nums text-ink-muted">Rule score {f.priority_score}/100</div>}
                 </td>
                 <td className="px-5 py-4">
                   <p className="text-ink">{f.title}</p>
@@ -77,4 +80,10 @@ export function FindingsTable({ findings, selectedId, onSelect }: { findings: Fi
       </div>
     </div>
   )
+}
+
+function effectivePriority(finding: Finding) {
+  return finding.ranking_source === 'gemini' && finding.ai_priority_score != null
+    ? finding.ai_priority_score
+    : finding.priority_score
 }

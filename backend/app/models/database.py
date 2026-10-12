@@ -96,7 +96,20 @@ class ScanRepository:
                 .where(ScanFindingRow.scan_id == scan_id)
                 .order_by(ScanFindingRow.finding_id)
             )
-            return [row.payload for row in rows]
+            findings = [row.payload for row in rows]
+            return sorted(
+                findings,
+                key=lambda finding: (
+                    -(
+                        finding.get("ai_priority_score")
+                        if isinstance(finding.get("ai_priority_score"), int)
+                        else finding.get("priority_score", 0)
+                    ),
+                    -finding.get("priority_score", 0),
+                    finding.get("rule_id", ""),
+                    finding.get("package", ""),
+                ),
+            )
 
     def list_recent(self, limit: int = 50) -> list[ScanRow]:
         with self._sessions() as session:

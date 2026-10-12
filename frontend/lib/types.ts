@@ -43,6 +43,9 @@ export interface Finding {
   confidence: Confidence
   /** 0-100, deterministic investigation priority (higher first). */
   priority_score: number
+  ranking_source?: 'deterministic' | 'gemini'
+  ai_priority_score?: number | null
+  ai_rationale?: string | null
   title: string
   explanation: string
   evidence: Evidence[]
@@ -53,6 +56,7 @@ export interface Finding {
 
 export interface RegistryMetadata {
   status: 'available' | 'unavailable'
+  publisher: string | null
   description: string | null
   license: string | null
   deprecated: string | null

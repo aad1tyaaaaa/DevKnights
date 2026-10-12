@@ -159,6 +159,64 @@ def detect_unusual_release_timing(
     return findings
 
 
+def detect_publisher_changes(
+    baseline: ScanGraph,
+    current: ScanGraph,
+    *,
+    observed_at: datetime,
+) -> list[Finding]:
+    comparison = compare_graphs(baseline, current)
+    baseline_nodes = {(node.name, node.version): node for node in baseline.nodes}
+    current_nodes = {(node.name, node.version): node for node in current.nodes}
+    findings: list[Finding] = []
+
+    for change in comparison.version_changes:
+        previous_publishers = {
+            node.registry.publisher
+            for version in change.from_versions
+            if (node := baseline_nodes.get((change.name, version))) is not None
+            and node.registry.publisher is not None
+        }
+        if not previous_publishers:
+            continue
+        for version in change.to_versions:
+            node = current_nodes.get((change.name, version))
+            if node is None or node.registry.publisher is None or node.registry.publisher in previous_publishers:
+                continue
+            findings.append(
+                Finding(
+                    id=_finding_id(current.scan_id, "publisher-change", node.id),
+                    rule_id="publisher-change",
+                    package=node.name,
+                    version=node.version,
+                    severity="medium",
+                    confidence="high",
+                    priority_score=60,
+                    title="Release publisher changed",
+                    explanation=(
+                        f"npm identifies {node.registry.publisher!r} as the publisher of {node.id}, while the "
+                        f"baseline version was published by {', '.join(repr(value) for value in sorted(previous_publishers))}. "
+                        "Publisher changes can be legitimate, but should be verified during an upgrade."
+                    ),
+                    evidence=[
+                        FindingEvidence(
+                            source="npm-registry",
+                            field="publisher_change",
+                            value={
+                                "from_versions": list(change.from_versions),
+                                "previous_publishers": sorted(previous_publishers),
+                                "to_version": version,
+                                "current_publisher": node.registry.publisher,
+                            },
+                            observed_at=observed_at,
+                        )
+                    ],
+                    paths=_dependency_paths(current, node.id),
+                )
+            )
+    return findings
+
+
 def _dependency_paths(graph: ScanGraph, target_id: str) -> list[list[str]]:
     if target_id not in {node.id for node in graph.nodes}:
         return []

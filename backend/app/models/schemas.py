@@ -69,6 +69,7 @@ class ScanDetail(BaseModel):
 
 class RegistryMetadataResponse(BaseModel):
     status: Literal["available", "unavailable"]
+    publisher: str | None = None
     description: str | None = None
     license: str | None = None
     deprecated: str | None = None
@@ -134,6 +135,9 @@ class Finding(BaseModel):
     severity: Literal["info", "low", "medium", "high"]
     confidence: Literal["low", "medium", "high"]
     priority_score: int = Field(ge=0, le=100)
+    ranking_source: Literal["deterministic", "gemini"] = "deterministic"
+    ai_priority_score: int | None = Field(default=None, ge=0, le=100)
+    ai_rationale: str | None = None
     title: str
     explanation: str
     evidence: list[FindingEvidence] = Field(min_length=1)

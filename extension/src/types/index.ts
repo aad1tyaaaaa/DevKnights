@@ -51,6 +51,9 @@ export interface Finding {
   confidence: 'low' | 'medium' | 'high';
   /** 0–100, deterministic investigation priority (higher first). */
   priority_score: number;
+  ranking_source?: 'deterministic' | 'gemini';
+  ai_priority_score?: number | null;
+  ai_rationale?: string | null;
   title: string;
   explanation: string;
   evidence: { source: string; field: string; value: unknown; observed_at: string | null }[];

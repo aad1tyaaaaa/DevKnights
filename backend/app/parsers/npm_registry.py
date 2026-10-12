@@ -13,6 +13,7 @@ class RegistryMetadata:
     package: str
     version: str
     status: str
+    publisher: str | None = None
     description: str | None = None
     license: str | None = None
     deprecated: str | None = None
@@ -146,10 +147,13 @@ class NpmRegistryClient:
 def _metadata_from_payload(package: str, version: str, payload: dict[str, Any]) -> RegistryMetadata:
     dist = payload.get("dist")
     dist_data = dist if isinstance(dist, dict) else {}
+    npm_user = payload.get("_npmUser")
+    npm_user_data = npm_user if isinstance(npm_user, dict) else {}
     return RegistryMetadata(
         package=package,
         version=version,
         status="available",
+        publisher=_optional_string(npm_user_data.get("name")),
         description=_optional_string(payload.get("description")),
         license=_license_string(payload.get("license")),
         deprecated=_optional_string(payload.get("deprecated")),

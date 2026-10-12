@@ -174,7 +174,7 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 | Unexpected dependency expansion | New graph edges after update | Requires version comparison |
 | Unusual release timing | npm release timestamps | Requires sufficient history |
 | Trusted manifest mismatch | Approved hash vs current canonical manifest | Deferred to Phase 6 verification |
-| Maintainer/publisher change (optional) | Reliable historical snapshots | Do not infer from current metadata alone |
+| Release publisher change | Version-specific npm `_npmUser.name` | Omitted when either release lacks publisher evidence |
 | Known vulnerability (optional) | OSV advisory | Separate from anomaly detection |
 
 ### Tasks
@@ -189,6 +189,8 @@ Flag suspicious release changes with traceable evidence and confidence limits.
 - [x] Synthetic suspicious fixture triggers expected findings.
 - [x] Every finding has supporting evidence, confidence, severity, and deterministic priority.
 - [x] Dependency paths are correct.
+- [x] Publisher changes use version-specific npm evidence and remain unknown when evidence is missing.
+- [x] Optional Gemini reranking is transparent, privacy-limited, and falls back to deterministic scores.
 
 ---
 

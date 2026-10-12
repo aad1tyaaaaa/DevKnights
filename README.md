@@ -108,6 +108,7 @@ Every answer comes with its evidence, and Provenyx is explicit about what it doe
 - The dependency graph uses npm's nearest-ancestor resolution.
 - npm registry client with caching and bounded concurrency. Metadata it cannot fetch is marked *unavailable*, never guessed.
 - Scan comparison: added and removed packages, version changes, new dependency edges.
+- Optional Gemini reranking of generated finding summaries, with deterministic fallback.
 - Release verification endpoint (read-only JSON-RPC; no keys).
 
 ### Smart contract
@@ -124,8 +125,11 @@ A rule fires only when there is a **baseline**, meaning an earlier completed sca
 | `new-dependency` | A package is present now but was not in the baseline | info | high | 30 if direct, 20 if transitive |
 | `dependency-expansion` | An existing package gained new dependency edges | low | high | 35 + 5 per new edge (max 60) |
 | `unusual-release-timing` | An upgraded version was published within 1 hour of its predecessor (npm release times) | low | medium | 45 |
+| `publisher-change` | npm identifies a different release-specific publisher for the upgraded version | medium | high | 60 |
 
 Severity (impact), confidence (how sure the rule is) and priority (0–100, for ordering) are independent. Every finding has at least one piece of evidence: its source (`lockfile`, `npm-registry`), the field, the value, and when it was observed. Findings are **leads to investigate, not proof of compromise**, and a normal upgrade is not flagged as high risk.
+
+Gemini reranking is optional and disabled by default. It receives only generated finding summaries, never lockfiles, dependency graphs or raw evidence. Both Gemini and deterministic scores remain visible; timeouts or invalid responses retain deterministic order.
 
 ## Release verification on the blockchain
 
@@ -150,6 +154,7 @@ The registry runs on a **local Hardhat development chain only**. No public netwo
 - **Never executes scanned code.** No `npm install`, no lifecycle scripts, no package code. Lockfiles are treated as data. One test fixture even contains a fake install script to show that nothing runs it.
 - **Never uploads without consent.** Each scan is confirmed, the destination URL is shown, and only `package-lock.json` is sent.
 - **Never invents results.** No fake findings, metrics or risk scores. When metadata is missing, it is shown as unknown.
+- **Limits AI disclosure.** Optional Gemini ranking receives generated finding summaries only and falls back to deterministic scores.
 - **Interprets results honestly.** A missing blockchain record is not evidence of malice, and a matching hash is not proof of safety.
 - **Hardened inputs.** Request bodies are capped at 10 MiB while they stream in, schemas are strict, error messages never echo your input, CORS is restricted, and package names and versions are validated.
 - **No secrets and no telemetry.**
@@ -185,7 +190,7 @@ The monorepo deliberately does **not** use npm workspaces: each JavaScript packa
 | Area | Technologies |
 |---|---|
 | Extension | TypeScript, VS Code Extension API (TreeView), esbuild, `@vscode/vsce`, `@vscode/test-electron` |
-| Backend | Python 3.11+, FastAPI, Pydantic, Uvicorn, SQLAlchemy + SQLite, NetworkX, httpx, pycryptodome (Keccak), pytest |
+| Backend | Python 3.11+, FastAPI, Pydantic, Uvicorn, SQLAlchemy + SQLite, NetworkX, httpx, optional Gemini ranking, pycryptodome (Keccak), pytest |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui conventions, Lucide icons, Cytoscape.js |
 | Blockchain | Solidity 0.8.28, Hardhat 3, viem, `node:test` |
 

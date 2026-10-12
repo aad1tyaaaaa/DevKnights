@@ -103,7 +103,7 @@ Node `id` is `name@version`, so multiple installed versions stay distinct. **The
       "lockfile_paths": ["node_modules/ms"],
       "resolved_urls": ["https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"],
       "lockfile_integrities": ["sha512-…"],
-      "registry": { "status": "available", "description": "…", "license": "MIT", "deprecated": null,
+      "registry": { "status": "available", "publisher": "release-owner", "description": "…", "license": "MIT", "deprecated": null,
                     "published_at": "2021-…", "dist_integrity": "sha512-…", "error": null } }
   ],
   "edges": [ { "from": "a@1.0.0", "to": "ms@2.1.3", "type": "prod" } ],   // prod | dev | optional | peer
@@ -115,7 +115,9 @@ Node `id` is `name@version`, so multiple installed versions stay distinct. **The
 
 ### Findings — `GET /api/scans/{scan_id}/findings`
 
-Every finding carries at least one piece of evidence. `severity`, `confidence`, and `priority_score` are independent; the list is sorted by `priority_score` (highest first).
+Every finding carries at least one piece of evidence. `severity`, `confidence`, and deterministic `priority_score` are independent. When optional Gemini ranking succeeds, `ai_priority_score` controls list order while both scores remain visible. Provider failure retains deterministic order.
+
+Implemented rules are `new-dependency`, `dependency-expansion`, `unusual-release-timing`, and `publisher-change`. Publisher changes compare npm's release-specific `_npmUser.name` values and are omitted when either side is unavailable.
 
 ```jsonc
 [
@@ -126,6 +128,9 @@ Every finding carries at least one piece of evidence. `severity`, `confidence`, 
     "severity": "medium",          // info | low | medium | high
     "confidence": "high",          // low | medium | high
     "priority_score": 55,          // 0–100, deterministic
+    "ranking_source": "gemini",   // deterministic | gemini
+    "ai_priority_score": 72,       // null unless Gemini ranking succeeds
+    "ai_rationale": "Brief reason without a compromise claim",
     "title": "Short, factual headline",
     "explanation": "Why this was flagged and what to check.",
     "evidence": [

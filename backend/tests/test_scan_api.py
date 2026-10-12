@@ -291,3 +291,41 @@ def test_unusual_release_timing_flows_through_findings_api(tmp_path: Path):
     assert len(findings) == 1
     assert findings[0]["rule_id"] == "unusual-release-timing"
     assert findings[0]["evidence"][0]["source"] == "npm-registry"
+
+
+def test_publisher_change_flows_through_findings_api(tmp_path: Path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        parts = request.url.path.strip("/").split("/")
+        if len(parts) == 1:
+            return httpx.Response(200, json={"time": {}})
+        version = parts[-1]
+        publisher = "original-owner" if version == "1.0.0" else "new-owner"
+        return httpx.Response(
+            200,
+            json={"name": "pkg", "version": version, "_npmUser": {"name": publisher}},
+        )
+
+    service = ScanService(
+        ScanRepository(f"sqlite:///{tmp_path / 'publisher.db'}"),
+        NpmRegistryClient(transport=httpx.MockTransport(handler), retries=0),
+    )
+    app.dependency_overrides[get_scan_service] = lambda: service
+
+    def lockfile(version: str):
+        return {
+            "lockfileVersion": 3,
+            "packages": {"": {"dependencies": {"pkg": version}}, "node_modules/pkg": {"version": version}},
+        }
+
+    with TestClient(app) as client:
+        client.post("/api/scans", json={"lockfile": lockfile("1.0.0"), "project_name": "publisher-demo"})
+        scan_id = client.post(
+            "/api/scans", json={"lockfile": lockfile("2.0.0"), "project_name": "publisher-demo"}
+        ).json()["scan_id"]
+        findings = client.get(f"/api/scans/{scan_id}/findings").json()
+    app.dependency_overrides.clear()
+
+    assert len(findings) == 1
+    assert findings[0]["rule_id"] == "publisher-change"
+    assert findings[0]["evidence"][0]["value"]["previous_publishers"] == ["original-owner"]
+    assert findings[0]["evidence"][0]["value"]["current_publisher"] == "new-owner"

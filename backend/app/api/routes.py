@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from app import __version__
+from app.detection.ai_ranker import GeminiFindingRanker
 from app.core.config import settings
 from app.models.database import ScanRepository
 from app.blockchain.registry import ReleaseRegistryReader
@@ -25,6 +26,16 @@ from app.parsers.npm_registry import NpmRegistryClient
 from app.services import ScanService
 
 router = APIRouter()
+finding_ranker = (
+    GeminiFindingRanker(
+        api_key=settings.gemini_api_key.get_secret_value(),
+        model=settings.gemini_model,
+        base_url=settings.gemini_base_url,
+        timeout_seconds=settings.gemini_timeout_seconds,
+    )
+    if settings.ai_ranking_enabled and settings.gemini_api_key is not None
+    else None
+)
 scan_service = ScanService(
     ScanRepository(settings.database_url),
     NpmRegistryClient(
@@ -33,6 +44,7 @@ scan_service = ScanService(
         timeout_seconds=settings.npm_registry_timeout_seconds,
         retries=settings.npm_registry_retries,
     ),
+    finding_ranker=finding_ranker,
 )
 
 
