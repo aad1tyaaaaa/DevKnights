@@ -151,7 +151,7 @@ function Navbar({ visible }: { visible: boolean }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: visible ? 1 : 0 }}
       transition={{ duration: 0.8 }}
-      className="fixed inset-x-0 top-0 z-50 flex h-20 items-center px-4 sm:px-6 md:px-8"
+      className="absolute inset-x-0 top-0 z-50 flex h-20 items-center px-4 sm:px-6 md:px-8"
     >
       {/* Desktop */}
       <div className="hidden w-full items-center justify-between sm:flex">
@@ -161,7 +161,7 @@ function Navbar({ visible }: { visible: boolean }) {
             aria-label="Provenyx home"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
-            className={`${open ? 'hidden md:flex' : 'flex'} size-16 shrink-0 rounded-[18px] bg-white p-1.5 shadow-lg shadow-black/30`}
+            className={`${open ? 'hidden md:flex' : 'flex'} size-20 shrink-0`}
           >
             {logo}
           </motion.a>
@@ -194,9 +194,9 @@ function Navbar({ visible }: { visible: boolean }) {
         <motion.a
           href="#top"
           aria-label="Provenyx home"
-          animate={{ width: open ? 0 : 44, opacity: open ? 0 : 1 }}
+          animate={{ width: open ? 0 : 56, opacity: open ? 0 : 1 }}
           transition={spring}
-          className="flex h-11 shrink-0 overflow-hidden rounded-[12px] bg-white p-1"
+          className="flex h-14 shrink-0 overflow-hidden"
         >
           {logo}
         </motion.a>
@@ -493,7 +493,7 @@ function Footer() {
       <div className="flex flex-col justify-between bg-brand p-10 sm:p-16 md:w-1/2">
         <div>
           <div className="mb-8 flex items-center gap-2.5">
-            <img src="/logo.png" alt="" aria-hidden className="size-[18px] opacity-70" />
+            <img src="/logo.png" alt="" aria-hidden className="size-8 opacity-70" />
             <span className="text-[15px] font-medium tracking-tight text-white/70">provenyx</span>
           </div>
           <p className="max-w-sm text-[14px] leading-relaxed text-white/40 sm:text-[15px]">

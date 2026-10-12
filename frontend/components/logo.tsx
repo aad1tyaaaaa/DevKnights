@@ -14,7 +14,7 @@ export function Logo({ light = false, stacked = false, className }: { light?: bo
         src="/logo.png"
         alt=""
         aria-hidden
-        className={cn(stacked ? 'size-20 rounded-2xl p-1.5' : 'size-9 rounded-lg p-0.5', light && 'bg-white')}
+        className={stacked ? 'size-20' : 'size-9'}
       />
       <span>provenyx</span>
     </span>

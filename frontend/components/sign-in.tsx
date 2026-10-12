@@ -41,7 +41,7 @@ export function SignIn() {
           style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '22px 22px' }}
         />
         <Link href="/" className="relative flex w-fit items-center gap-3" aria-label="Provenyx home">
-          <img src="/logo.png" alt="" className="size-12 rounded-xl bg-white p-1" />
+          <img src="/logo.png" alt="" className="size-12" />
           <span className="text-xl font-semibold tracking-tight">provenyx</span>
         </Link>
         <div className="relative max-w-md">
@@ -62,7 +62,7 @@ export function SignIn() {
           <ArrowLeft className="size-4" aria-hidden /> Back to home
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
-          <img src="/logo.png" alt="" className="mb-6 size-14 rounded-2xl bg-white p-1.5 shadow-sm lg:hidden" />
+          <img src="/logo.png" alt="" className="mb-6 size-14 lg:hidden" />
           <h1 className="text-3xl font-semibold tracking-tight text-ink">Sign in to Provenyx</h1>
           <p className="mt-2 text-sm leading-6 text-ink-muted">Use your GitHub account to open the dashboard and scan your repositories.</p>
 
