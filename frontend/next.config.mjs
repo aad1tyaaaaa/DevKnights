@@ -1,14 +1,21 @@
-// When the dashboard and API live on different sites (e.g. Vercel + Render), the browser treats the
-// API's session cookie as third-party and blocks it, which breaks GitHub sign-in. Setting
-// PROVENYX_API_PROXY_URL proxies /api/* and /health through this app instead, so the cookie is
-// first-party; pair it with NEXT_PUBLIC_PROVENYX_API_URL=/ so the browser calls the same origin.
-const apiProxy = process.env.PROVENYX_API_PROXY_URL?.replace(/\/+$/, '')
+// Production (Vercel): the dashboard and API live on different sites, so the browser would treat the
+// API's session cookie as third-party and block it, breaking GitHub sign-in. Instead this app proxies
+// /api/* and /health to the API, and the browser only ever talks to this origin.
+//
+// PROVENYX_API_PROXY_URL defaults to the Render Blueprint's service URL when building on Vercel;
+// set it if your Render service got a different URL. Locally it is unset and the browser calls
+// http://localhost:8000 directly.
+const apiProxy = (
+  process.env.PROVENYX_API_PROXY_URL ?? (process.env.VERCEL ? 'https://provenyx-api.onrender.com' : '')
+).replace(/\/+$/, '')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Behind the proxy the browser calls this same origin.
+  env: apiProxy ? { NEXT_PUBLIC_PROVENYX_API_URL: '/' } : {},
   async rewrites() {
     if (!apiProxy) return []
     return [

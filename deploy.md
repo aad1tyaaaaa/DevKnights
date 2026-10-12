@@ -24,58 +24,61 @@ VS Code extension ────────────────────�
 
 The dashboard and the API live on different sites (`*.vercel.app` and `*.onrender.com`). To a browser, the API's GitHub session cookie would then be a **third-party cookie**, which Safari and Chrome block. GitHub sign-in would silently fail.
 
-So Vercel proxies `/api/*` to Render (see `frontend/next.config.mjs`), and the browser only ever talks to the Vercel site. Cookies stay first-party, and CORS is not involved.
+So Vercel proxies `/api/*` to Render (`frontend/next.config.mjs`), and the browser only ever talks to the Vercel site. Cookies stay first-party, and CORS is not involved. The same proxy adds the API access key on the server side (`frontend/proxy.ts`), so the key never reaches a browser.
 
 ---
+
+## Quick start
+
+The repository is already configured for both hosts. You only connect it and paste a few values:
+
+| Where | You provide | Everything else |
+|---|---|---|
+| **Render** | your Vercel URL, GitHub OAuth client ID and secret, and optionally a Neon database URL | `render.yaml` presets the build, start command, health check, Python version and plan, and generates the secrets |
+| **Vercel** | the root directory `frontend`, and one variable: `PROVENYX_API_KEY` | `next.config.mjs` proxies `/api` to `https://provenyx-api.onrender.com` and switches the browser to same-origin calls |
+
+The steps below take about 15 minutes.
 
 ## Before you start
 
 - Push the repository to GitHub. Vercel and Render deploy straight from it.
-- Choose your Vercel project name now, because several settings need its URL. The examples below use `provenyx`, which gives `https://provenyx.vercel.app`. Replace it everywhere with yours.
-- Generate two random secrets. Run this twice:
-
-  ```bash
-  python -c "import secrets; print(secrets.token_urlsafe(32))"
-  ```
-
-  The first is the **API access key**. The second is the **GitHub session secret**. Alternatively, let Render generate both (step 2 does this) and copy them from its dashboard.
+- Pick your Vercel project name now, because the backend needs its URL. The examples use `provenyx`, which gives `https://provenyx.vercel.app`. Replace it everywhere with yours.
 
 ---
 
-## 1. Database: Neon (free Postgres)
+## 1. Database: Neon (free Postgres, recommended)
 
 Render's free web services have no persistent disk. With the default SQLite database, every scan would disappear on each restart, redeploy or sleep.
 
-1. Sign up at <https://neon.tech> and create a project (any region; pick one close to your Render region).
-2. On the project dashboard, copy the **connection string**. It looks like
+1. Sign up at <https://neon.tech> and create a project. Pick a region close to your Render region.
+2. Copy the **connection string**. It looks like
    `postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require`.
-3. Keep it for step 2. Provenyx creates its tables automatically on first start, and accepts the URL as Neon gives it (it switches to the `psycopg` driver itself).
 
-> **Skipping this:** leave `PROVENYX_DATABASE_URL` unset and the API uses SQLite. Everything works, but scan history is lost whenever the service restarts. That's fine for a quick demo.
+Provenyx creates its tables on first start and accepts the URL exactly as Neon gives it.
+
+> **Skipping this:** leave `PROVENYX_DATABASE_URL` empty and the API uses SQLite. Everything works, but scan history is lost whenever the service restarts.
 
 ---
 
 ## 2. API: Render (free web service)
 
-The repository includes a Render Blueprint (`render.yaml`) with the build command, start command, health check and environment variables already set.
-
 1. Sign up at <https://render.com> with your GitHub account.
 2. Click **New → Blueprint**, select this repository, and confirm. Render reads `render.yaml` and creates the `provenyx-api` service on the **Free** plan.
-3. Fill in the variables Render asks for:
+3. Render asks for four values:
 
    | Variable | Value |
    |---|---|
-   | `PROVENYX_DATABASE_URL` | Neon connection string from step 1 (or leave empty for SQLite) |
    | `PROVENYX_FRONTEND_URL` | `https://provenyx.vercel.app` |
-   | `PROVENYX_CORS_ORIGINS` | `https://provenyx.vercel.app` |
-   | `PROVENYX_GITHUB_CALLBACK_URL` | `https://provenyx.vercel.app/api/github/auth/callback` |
    | `PROVENYX_GITHUB_CLIENT_ID` | leave empty for now (step 4) |
    | `PROVENYX_GITHUB_CLIENT_SECRET` | leave empty for now (step 4) |
+   | `PROVENYX_DATABASE_URL` | Neon connection string from step 1, or empty |
 
-   `PROVENYX_API_KEY` and `PROVENYX_GITHUB_SESSION_SECRET` are generated automatically. `PROVENYX_SECURE_COOKIES=true` is preset.
-4. Deploy. When it's live, open `https://provenyx-api.onrender.com/health` (your service URL may differ). You should see
+   You don't set a callback URL, CORS or cookie settings. They follow from `PROVENYX_FRONTEND_URL`: the GitHub callback becomes `https://provenyx.vercel.app/api/github/auth/callback`, and cookies are marked Secure. `PROVENYX_API_KEY` and `PROVENYX_GITHUB_SESSION_SECRET` are generated for you.
+4. When the deploy finishes, open `https://provenyx-api.onrender.com/health`. You should see
    `{"status":"ok","service":"provenyx-api","version":"0.1.0"}`.
-5. In the service's **Environment** tab, copy the generated `PROVENYX_API_KEY` value for step 3.
+5. In the service's **Environment** tab, reveal and copy `PROVENYX_API_KEY` for step 3.
+
+> **If your service URL is different** (Render appends a suffix when `provenyx-api` is taken), note it: Vercel needs it in step 3.
 
 <details><summary>Manual setup instead of the Blueprint</summary>
 
@@ -87,7 +90,7 @@ The repository includes a Render Blueprint (`render.yaml`) with the build comman
 - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'`
 - **Health Check Path:** `/health`
 - **Instance Type:** Free
-- **Environment:** `PYTHON_VERSION=3.12.8`, plus every variable in the table above, plus `PROVENYX_API_KEY`, `PROVENYX_GITHUB_SESSION_SECRET` (your two secrets) and `PROVENYX_SECURE_COOKIES=true`.
+- **Environment:** `PYTHON_VERSION=3.12.8`, the four variables in the table above, plus `PROVENYX_API_KEY` and `PROVENYX_GITHUB_SESSION_SECRET`. Generate each with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 
 </details>
 
@@ -99,19 +102,19 @@ The repository includes a Render Blueprint (`render.yaml`) with the build comman
 
 1. Sign up at <https://vercel.com> with your GitHub account.
 2. Click **Add New → Project** and import this repository.
-3. Set **Root Directory** to `frontend`. Vercel detects Next.js; keep the default build settings.
-4. Add the **Environment Variables** (for all environments):
+3. Next to **Root Directory**, click **Edit** and choose `frontend`. Vercel detects Next.js; keep the default build settings.
+4. Under **Environment Variables**, add:
 
-   | Variable | Value | Purpose |
-   |---|---|---|
-   | `PROVENYX_API_PROXY_URL` | `https://provenyx-api.onrender.com` | Where Vercel proxies `/api/*` (server side only) |
-   | `NEXT_PUBLIC_PROVENYX_API_URL` | `/` | Makes the browser call the Vercel site itself |
-   | `NEXT_PUBLIC_PROVENYX_API_KEY` | the `PROVENYX_API_KEY` from Render | Sent as `X-Provenyx-Key` |
+   | Variable | Value |
+   |---|---|
+   | `PROVENYX_API_KEY` | the value copied from Render in step 2 |
+   | `PROVENYX_API_PROXY_URL` | **only** if your Render URL isn't `https://provenyx-api.onrender.com` |
 
-5. Name the project to match the URL you chose (e.g. `provenyx`) and click **Deploy**.
-6. Open `https://provenyx.vercel.app`. The landing page loads. Then check `https://provenyx.vercel.app/health`: it should return the same JSON as Render, which proves the proxy works.
+   The key is added to API requests by the Vercel server (`frontend/proxy.ts`). It is never sent to browsers.
+5. Name the project to match your chosen URL (e.g. `provenyx`) and click **Deploy**.
+6. Open `https://provenyx.vercel.app/health`. It should return the same JSON as Render, which proves the proxy works.
 
-These variables are read at **build time**. After changing any of them, redeploy (**Deployments → ⋯ → Redeploy**).
+`PROVENYX_API_PROXY_URL` is read at **build time**. After changing it, redeploy (**Deployments → ⋯ → Redeploy**).
 
 ---
 
@@ -129,7 +132,7 @@ These variables are read at **build time**. After changing any of them, redeploy
 
    The callback goes through the **Vercel** URL, not Render's: that's how the session cookie stays first-party.
 3. Click **Register application**, then **Generate a new client secret**.
-4. In Render, set `PROVENYX_GITHUB_CLIENT_ID` and `PROVENYX_GITHUB_CLIENT_SECRET`, then save. Render redeploys.
+4. In Render, set `PROVENYX_GITHUB_CLIENT_ID` and `PROVENYX_GITHUB_CLIENT_SECRET`, then save. Render redeploys by itself.
 5. On the landing page, click **Sign in with GitHub**. GitHub asks you to authorize the app, then sends you to the dashboard with your avatar in the navbar and sidebar.
 
 **Every dashboard page requires sign-in.** Visitors who aren't signed in are sent to `/signin` and returned to the page they wanted afterwards. **Log out** is at the bottom of the sidebar. Until the OAuth App is configured, the sign-in page explains what's missing, so the dashboard stays locked.
@@ -201,11 +204,11 @@ Other repositories can use it too:
 
 | Symptom | Cause and fix |
 |---|---|
-| Dashboard says it **cannot reach the API** | `PROVENYX_API_PROXY_URL` is missing or wrong, or Vercel wasn't redeployed after setting it. Check `https://provenyx.vercel.app/health`. |
+| Dashboard says it **cannot reach the API** | Your Render URL isn't `https://provenyx-api.onrender.com`, and `PROVENYX_API_PROXY_URL` isn't set on Vercel (or Vercel wasn't redeployed after setting it). Check `https://provenyx.vercel.app/health`. |
 | First request takes ~1 minute | The free Render service was asleep. Set up step 5. |
-| `401: A valid X-Provenyx-Key header is required` | `NEXT_PUBLIC_PROVENYX_API_KEY` (Vercel) or `provenyx.apiKey` (VS Code) differs from Render's `PROVENYX_API_KEY`. Redeploy Vercel after fixing it. |
-| Sign-in returns `github_error=invalid_oauth_state` | The sign-in started on a different site from the one the callback returns to. Use the Vercel URL everywhere: `PROVENYX_FRONTEND_URL`, `PROVENYX_GITHUB_CALLBACK_URL` and the OAuth App's callback URL. |
-| GitHub says **redirect_uri is not associated** | The OAuth App's callback URL doesn't exactly match `PROVENYX_GITHUB_CALLBACK_URL`. |
+| `401: A valid X-Provenyx-Key header is required` | `PROVENYX_API_KEY` on Vercel (or `provenyx.apiKey` in VS Code) differs from Render's `PROVENYX_API_KEY`. Fix it, then redeploy Vercel. |
+| Sign-in returns `github_error=invalid_oauth_state` | The sign-in started on a different site from the one the callback returns to. `PROVENYX_FRONTEND_URL` on Render and the OAuth App's URLs must use the same Vercel URL you browse. |
+| GitHub says **redirect_uri is not associated** | The OAuth App's callback URL must be exactly `<PROVENYX_FRONTEND_URL>/api/github/auth/callback`. |
 | Sign-in page says **GitHub sign-in isn't set up** | `PROVENYX_GITHUB_CLIENT_ID`, `_SECRET` or `_SESSION_SECRET` is missing on Render. |
 | Scans disappear after a while | `PROVENYX_DATABASE_URL` isn't set, so the API is using SQLite on Render's temporary disk. |
 | `429 Too many submissions` | The per-client rate limit (30 scans a minute). Raise it with `PROVENYX_SUBMISSION_RATE_LIMIT_PER_MINUTE`. |
@@ -216,7 +219,7 @@ Server logs, including the full error for any failed scan, are under **Logs** in
 
 ## Security notes
 
-- **The access key is shared, not per-user.** It keeps strangers and bots off an exposed API, but the dashboard's copy is visible in its JavaScript bundle. Scans are not yet owned by users: anyone who can use the dashboard can see every scan. Treat a deployment as a **team or demo workspace**, and don't scan lockfiles you couldn't share with everyone who has the link.
+- **The access key is shared, not per-user.** It stops anyone from calling the Render API directly; the dashboard adds it on the server, so it never appears in the browser. But scans are not yet owned by users: anyone who signs in to the dashboard can see every scan. Treat a deployment as a **team or demo workspace**, and don't scan lockfiles you couldn't share with everyone who has the link.
 - Keep `PROVENYX_GITHUB_CLIENT_SECRET`, `PROVENYX_GITHUB_SESSION_SECRET` and `PROVENYX_API_KEY` out of the repository. Set them only in the Render and Vercel dashboards. Rotating the session secret signs everyone out.
 - No package code is ever downloaded or executed, in production or in the trust gate.
 

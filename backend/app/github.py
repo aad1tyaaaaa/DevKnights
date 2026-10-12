@@ -74,7 +74,7 @@ class GitHubService:
         query = urlencode(
             {
                 "client_id": self.settings.github_client_id,
-                "redirect_uri": self.settings.github_callback_url,
+                "redirect_uri": self.settings.github_callback,
                 "scope": "repo read:user",
                 "state": state,
             }
@@ -93,7 +93,7 @@ class GitHubService:
                     "client_id": self.settings.github_client_id,
                     "client_secret": secret.get_secret_value(),
                     "code": code,
-                    "redirect_uri": self.settings.github_callback_url,
+                    "redirect_uri": self.settings.github_callback,
                 },
             )
         self._raise_for_status(response)

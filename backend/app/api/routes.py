@@ -159,7 +159,7 @@ def safe_next_path(value: str | None) -> str:
 
 def _frontend_redirect(path: str, **query: str) -> RedirectResponse:
     separator = "&" if "?" in path else "?"
-    return RedirectResponse(f"{settings.frontend_url}{path}{separator}{urlencode(query)}")
+    return RedirectResponse(f"{settings.frontend_url.rstrip('/')}{path}{separator}{urlencode(query)}")
 
 
 @router.get("/api/github/auth/login")
@@ -177,7 +177,7 @@ def github_auth_login(
         github.codec.encode({"state": state, "next": safe_next_path(next)}, GITHUB_STATE_MAX_AGE),
         max_age=GITHUB_STATE_MAX_AGE,
         httponly=True,
-        secure=settings.secure_cookies,
+        secure=settings.cookies_secure,
         samesite="lax",
     )
     return response
@@ -207,7 +207,7 @@ async def github_auth_callback(
         github.codec.encode({"token": token}, GITHUB_SESSION_MAX_AGE),
         max_age=GITHUB_SESSION_MAX_AGE,
         httponly=True,
-        secure=settings.secure_cookies,
+        secure=settings.cookies_secure,
         samesite="lax",
     )
     return response

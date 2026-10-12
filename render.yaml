@@ -1,37 +1,33 @@
-# Render Blueprint for the Provenyx API (free plan). See deploy.md.
+# Render Blueprint for the Provenyx API (free plan): New → Blueprint → select this repository.
+# You are asked for the values marked `sync: false`; everything else is preset. See deploy.md.
 services:
   - type: web
-    name: provenyx-api
+    name: provenyx-api # gives https://provenyx-api.onrender.com, the frontend's default proxy target
     runtime: python
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    # --proxy-headers: behind Render's (and Vercel's) proxy, rate limits must see the real client address.
+    # --proxy-headers: behind Render's and Vercel's proxies, rate limits must see the real client address.
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
-      # Free Neon Postgres connection string (Render's free disk is wiped on every restart).
-      - key: PROVENYX_DATABASE_URL
-        sync: false
-      # https://<your-project>.vercel.app — where GitHub sign-in returns to.
+      # Your Vercel URL, e.g. https://provenyx.vercel.app. The GitHub callback URL, CORS origin and
+      # secure cookies are derived from it.
       - key: PROVENYX_FRONTEND_URL
         sync: false
-      - key: PROVENYX_CORS_ORIGINS
-        sync: false
-      # https://<your-project>.vercel.app/api/github/auth/callback (through the Vercel proxy).
-      - key: PROVENYX_GITHUB_CALLBACK_URL
-        sync: false
+      # From your GitHub OAuth App (deploy.md step 3). Can be added after the first deploy.
       - key: PROVENYX_GITHUB_CLIENT_ID
         sync: false
       - key: PROVENYX_GITHUB_CLIENT_SECRET
         sync: false
+      # Optional but recommended: a free Neon Postgres URL. Empty = SQLite, wiped on every restart.
+      - key: PROVENYX_DATABASE_URL
+        sync: false
       - key: PROVENYX_GITHUB_SESSION_SECRET
         generateValue: true
-      - key: PROVENYX_SECURE_COOKIES
-        value: "true"
-      # Shared access key; set the same value as NEXT_PUBLIC_PROVENYX_API_KEY on Vercel.
+      # Copy this value into Vercel as PROVENYX_API_KEY (server-side; never shipped to browsers).
       - key: PROVENYX_API_KEY
         generateValue: true

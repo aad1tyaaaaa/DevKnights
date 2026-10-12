@@ -365,9 +365,10 @@ The full schemas are in [docs/api-contract.md](docs/api-contract.md). Interactiv
 | VS Code | `provenyx.apiKey` | empty (local backend) |
 | Backend (`backend/.env`) | `PROVENYX_API_KEY` (shared access key; unset = open, local only), `PROVENYX_SUBMISSION_RATE_LIMIT_PER_MINUTE` | unset, `30` |
 | Backend (`backend/.env`) | `PROVENYX_CORS_ORIGINS`, `PROVENYX_MAX_SCAN_BYTES`, `PROVENYX_DATABASE_URL`, `PROVENYX_NPM_REGISTRY_*`, `PROVENYX_GITHUB_*`, `PROVENYX_REGISTRY_RPC_URL`, `PROVENYX_REGISTRY_ADDRESS` | See `backend/.env.example` |
-| Frontend (`frontend/.env.local`) | `NEXT_PUBLIC_PROVENYX_API_URL`, `NEXT_PUBLIC_PROVENYX_API_KEY` | `http://localhost:8000`, unset |
+| Frontend (`frontend/.env.local`) | `NEXT_PUBLIC_PROVENYX_API_URL`, `NEXT_PUBLIC_PROVENYX_REQUIRE_SIGN_IN` | `http://localhost:8000`, `true` |
+| Frontend (Vercel) | `PROVENYX_API_KEY` (added server-side by `proxy.ts`), `PROVENYX_API_PROXY_URL` | unset, `https://provenyx-api.onrender.com` |
 
-**Deploying beyond your machine:** scans are not owned by users yet, so anyone who can reach an open backend can list and read every scan. Set `PROVENYX_API_KEY` (and the matching dashboard and extension settings) before exposing it. This is one shared key for a demo deployment, not per-user isolation: the dashboard's copy ships in its browser bundle. Scan and trust-gate submissions are rate limited per client address.
+**Deploying beyond your machine:** scans are not owned by users yet, so anyone who can reach an open backend can list and read every scan. Set `PROVENYX_API_KEY` (and the matching dashboard and extension settings) before exposing it. This is one shared key, not per-user isolation; the deployed dashboard adds it on the server, so it never reaches browsers. Scan and trust-gate submissions are rate limited per client address.
 
 ## Project status
 

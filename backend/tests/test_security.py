@@ -89,3 +89,21 @@ def test_session_cookie_is_sealed_tamper_evident_and_expires(monkeypatch):
     assert codec.decode("not-a-cookie") is None
     monkeypatch.setattr(time, "time", lambda: 10**12)
     assert codec.decode(sealed) is None
+
+
+def test_production_settings_follow_from_the_dashboard_url():
+    from app.core.config import Settings
+
+    local = Settings(_env_file=None)
+    assert local.github_callback == "http://localhost:8000/api/github/auth/callback"
+    assert local.cookies_secure is False
+
+    deployed = Settings(_env_file=None, frontend_url="https://provenyx.vercel.app/")
+    assert deployed.github_callback == "https://provenyx.vercel.app/api/github/auth/callback"
+    assert deployed.cookies_secure is True
+    assert "https://provenyx.vercel.app" in deployed.cors_origin_list
+
+    explicit = Settings(
+        _env_file=None, frontend_url="https://x.vercel.app", github_callback_url="https://api.example/cb", secure_cookies=False
+    )
+    assert (explicit.github_callback, explicit.cookies_secure) == ("https://api.example/cb", False)

@@ -34,9 +34,11 @@ class Settings(BaseSettings):
     github_session_secret: SecretStr | None = None
     github_api_url: str = "https://api.github.com"
     github_oauth_url: str = "https://github.com/login/oauth"
-    github_callback_url: str = "http://localhost:8000/api/github/auth/callback"
+    # Where GitHub sign-in returns to. Setting only this is enough in production: the callback URL,
+    # CORS origin and secure cookies below follow from it unless set explicitly.
     frontend_url: str = "http://localhost:3000"
-    secure_cookies: bool = False
+    github_callback_url: str | None = None
+    secure_cookies: bool | None = None
     # Release registry (Phase 6): local Hardhat chain only. Read-only; no keys are needed.
     registry_rpc_url: str = "http://127.0.0.1:8545"
     registry_deployment_file: str = str(_REPO_ROOT / "contracts" / "deployments" / "localhost.json")
@@ -45,7 +47,27 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        frontend = self.frontend_url.rstrip("/")
+        return origins if frontend in origins else [*origins, frontend]
+
+    @property
+    def deployed(self) -> bool:
+        """An HTTPS dashboard means a real deployment, which proxies the API through its own origin."""
+        return self.frontend_url.startswith("https://")
+
+    @property
+    def github_callback(self) -> str:
+        if self.github_callback_url:
+            return self.github_callback_url
+        # Deployed, the callback goes through the dashboard's /api proxy so the session cookie is first-party.
+        if self.deployed:
+            return f"{self.frontend_url.rstrip('/')}/api/github/auth/callback"
+        return "http://localhost:8000/api/github/auth/callback"
+
+    @property
+    def cookies_secure(self) -> bool:
+        return self.deployed if self.secure_cookies is None else self.secure_cookies
 
     @property
     def github_auth_configured(self) -> bool:
