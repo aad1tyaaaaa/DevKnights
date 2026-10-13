@@ -65,7 +65,7 @@ function FindingSimplificationCard({ finding }: { finding: Finding }) {
           type="button"
           onClick={simplify}
           disabled={loading}
-          className="flex items-center gap-1 rounded bg-ink px-2.5 py-1 text-[11px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+          className="flex items-center gap-1 rounded bg-ink px-2.5 py-1 text-[11px] font-medium text-panel hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:opacity-50"
         >
           {loading ? <Loader2 className="size-3 animate-spin" /> : <Bot className="size-3" />}
           <span>{data ? 'Regenerate' : 'Simplify'}</span>

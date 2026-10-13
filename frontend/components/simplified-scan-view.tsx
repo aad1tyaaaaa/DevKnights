@@ -71,7 +71,7 @@ export function SimplifiedScanView({ scanId, initialSimplified }: Props) {
             type="button"
             onClick={handleSimplify}
             disabled={loading}
-            className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-panel transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:opacity-50"
           >
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Bot className="size-3.5" />}
             <span>{data ? 'Regenerate' : 'Simplify Now'}</span>
