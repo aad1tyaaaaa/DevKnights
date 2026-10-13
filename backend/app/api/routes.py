@@ -41,6 +41,7 @@ from app.models.schemas import (
     ScanRequest,
     SimplifiedFindingResponse,
     SimplifiedScanResponse,
+    SimplifyDirectFindingRequest,
     SimplifyFindingRequest,
     SimplifyScanRequest,
     VerificationResult,
@@ -719,4 +720,22 @@ async def post_finding_simplified(
     simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
 ) -> SimplifiedFindingResponse:
     return await _execute_finding_simplification(scan_id, finding_id, body.language, request, github, service, simplifier)
+
+
+@router.post("/api/findings/simplify", response_model=SimplifiedFindingResponse)
+async def post_direct_finding_simplified(
+    body: SimplifyDirectFindingRequest,
+    simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
+) -> SimplifiedFindingResponse:
+    item, provider = await simplifier.simplify_single_finding(body.finding, language=body.language)
+    return SimplifiedFindingResponse(
+        finding_id=body.finding.id,
+        language=body.language,
+        title=item.title,
+        what_happened=item.what_happened,
+        why_it_matters=item.why_it_matters,
+        recommendation=item.recommendation,
+        provider=provider,
+        model=simplifier.model_name,
+    )
 

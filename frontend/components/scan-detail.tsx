@@ -190,6 +190,7 @@ function CompleteScan({ scan }: { scan: Scan }) {
 
       {drawerOpen && selectedNode && (
         <PackageDetailDrawer
+          scanId={scan.scan_id}
           packageId={selectedNode}
           node={graph?.nodes.find((n) => n.id === selectedNode)}
           findings={nodeFindings}

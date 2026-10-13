@@ -316,6 +316,13 @@ class SimplifyFindingRequest(BaseModel):
     language: str = Field(default="English", max_length=64, description="Target understanding language for explanation")
 
 
+class SimplifyDirectFindingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    finding: Finding
+    language: str = Field(default="English", max_length=64, description="Target understanding language for explanation")
+
+
 class SimplifiedFindingResponse(BaseModel):
     finding_id: str
     language: str

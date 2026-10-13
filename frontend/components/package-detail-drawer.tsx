@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api'
 import type { Finding, GraphNode, SimplifiedFindingResponse } from '@/lib/types'
 
 interface Props {
+  scanId?: string
   packageId: string
   node: GraphNode | undefined
   findings: Finding[]
@@ -20,7 +21,7 @@ function splitId(id: string) {
   return at > 0 ? { name: id.slice(0, at), version: id.slice(at + 1) } : { name: id, version: '' }
 }
 
-function FindingSimplificationCard({ finding }: { finding: Finding }) {
+function FindingSimplificationCard({ scanId, finding }: { scanId?: string; finding: Finding }) {
   const [data, setData] = useState<SimplifiedFindingResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -29,14 +30,30 @@ function FindingSimplificationCard({ finding }: { finding: Finding }) {
     setLoading(true)
     setErr(null)
     try {
-      const res = await apiFetch<SimplifiedFindingResponse>(
-        `/api/scans/dummy/findings/${encodeURIComponent(finding.id)}/simplify`,
+      const endpoint = scanId
+        ? `/api/scans/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(finding.id)}/simplify`
+        : '/api/findings/simplify'
+      const payload = scanId ? { language: 'English' } : { finding, language: 'English' }
+
+      let res = await apiFetch<SimplifiedFindingResponse>(
+        endpoint,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language: 'English' }),
+          body: JSON.stringify(payload),
         },
       )
+      if (res.state === 'unavailable') {
+        res = await apiFetch<SimplifiedFindingResponse>(
+          '/api/findings/simplify',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ finding, language: 'English' }),
+          },
+        )
+      }
+
       if (res.state === 'ok') {
         setData(res.data)
       } else if (res.state === 'error') {
@@ -107,7 +124,7 @@ function FindingSimplificationCard({ finding }: { finding: Finding }) {
   )
 }
 
-export function PackageDetailDrawer({ packageId, node, findings, onClose }: Props) {
+export function PackageDetailDrawer({ scanId, packageId, node, findings, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const { name, version } = node ?? splitId(packageId)
 
@@ -156,7 +173,7 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink/70">{f.explanation}</p>
 
-              <FindingSimplificationCard finding={f} />
+              <FindingSimplificationCard scanId={scanId} finding={f} />
 
               {f.ranking_source === 'gemini' && f.ai_priority_score != null && (
                 <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-ink/70">
