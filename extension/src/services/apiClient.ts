@@ -119,3 +119,19 @@ export function getFindings(scanId: string, accessToken: string): Promise<Findin
     ),
   );
 }
+
+export function simplifyScan(
+  scanId: string,
+  accessToken: string,
+  language: string = 'English',
+): Promise<import('../types').SimplifiedScanResponse> {
+  return request<import('../types').SimplifiedScanResponse>(
+    `/api/scans/${encodeURIComponent(scanId)}/simplify`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    },
+    READ_TIMEOUT_MS,
+  );
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f2f055fd-36a3-4bfe-ab54-b589d0dc6408",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/pscope/Developer/DevKnights/.archify/architecture-provenyx-20261013-070500/candidate.json",
+  "output": "/Users/pscope/Developer/DevKnights/.archify/architecture-provenyx-20261013-070500/provenyx-architecture.html",
+  "specification": {
+    "sha256": "59c5752340bcbecdeb652c568c13c2bb9dea60fcb17a1ace6379a8c49bc4682f",
+    "bytes": 16869
+  },
+  "artifact": {
+    "sha256": "24c254a29574ba7d9c01e62fd0fce4bc6e85797f4f93db73ae9bbfdcdc72ad4f",
+    "bytes": 796936
+  }
+}

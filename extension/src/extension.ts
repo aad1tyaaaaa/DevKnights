@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { scanDependencies } from './commands/scanDependencies';
+import { simplifyFindingsCommand } from './commands/simplifyFindings';
 import { FindingsTreeProvider } from './providers/findingsTreeProvider';
 import { checkHealth, DEFAULT_API_BASE_URL } from './services/apiClient';
 import { githubSession, requireGitHubSession } from './services/githubAuth';
@@ -96,8 +97,11 @@ export async function activate(context: vscode.ExtensionContext) {
     registerCommand('provenyx.openDashboard', (path?: unknown) =>
       openDashboard(typeof path === 'string' && path.startsWith('/') ? path : ''),
     ),
-    registerCommand('provenyx.checkBackend', () => checkBackend(true)),
-    registerCommand('provenyx.signIn', () => requireGitHubSession()),
+    vscode.commands.registerCommand('provenyx.simplifyFindings', () =>
+      simplifyFindingsCommand(tree),
+    ),
+    vscode.commands.registerCommand('provenyx.checkBackend', () => checkBackend(true)),
+    vscode.commands.registerCommand('provenyx.signIn', () => requireGitHubSession()),
     createLockfileWatcher((uri) => void scanDependencies(tree, uri)),
     vscode.workspace.onDidChangeWorkspaceFolders((event) => {
       tree.refresh();

@@ -60,6 +60,12 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "provenyx.simplifyFindings",
+        "title": "Simplify Findings (OpenRouter LLM)",
+        "category": "Provenyx",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "provenyx.signIn",
         "title": "Sign In with GitHub",
         "category": "Provenyx"
@@ -95,9 +101,14 @@
           "group": "navigation@2"
         },
         {
-          "command": "provenyx.openDashboard",
+          "command": "provenyx.simplifyFindings",
           "when": "view == provenyx.findings",
           "group": "navigation@3"
+        },
+        {
+          "command": "provenyx.openDashboard",
+          "when": "view == provenyx.findings",
+          "group": "navigation@4"
         }
       ]
     },

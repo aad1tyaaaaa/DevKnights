@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Bot, Globe, Loader2, Sparkles, X } from 'lucide-react'
 import { ConfidenceLabel, SeverityBadge } from '@/components/badges'
 import { VerificationStatus } from '@/components/verification-status'
 import { formatDate } from '@/lib/format'
-import type { Finding, GraphNode } from '@/lib/types'
+import { apiFetch } from '@/lib/api'
+import type { Finding, GraphNode, SimplifiedFindingResponse } from '@/lib/types'
 
 interface Props {
   packageId: string
@@ -17,6 +18,93 @@ interface Props {
 function splitId(id: string) {
   const at = id.lastIndexOf('@')
   return at > 0 ? { name: id.slice(0, at), version: id.slice(at + 1) } : { name: id, version: '' }
+}
+
+function FindingSimplificationCard({ finding }: { finding: Finding }) {
+  const [data, setData] = useState<SimplifiedFindingResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const simplify = async () => {
+    setLoading(true)
+    setErr(null)
+    try {
+      const res = await apiFetch<SimplifiedFindingResponse>(
+        `/api/scans/dummy/findings/${encodeURIComponent(finding.id)}/simplify`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language: 'English' }),
+        },
+      )
+      if (res.state === 'ok') {
+        setData(res.data)
+      } else if (res.state === 'error') {
+        setErr(res.message)
+      } else if (res.state === 'unavailable') {
+        setErr('Simplification is not available on this API server.')
+      }
+    } catch (e) {
+      setErr((e as Error).message || 'Failed to simplify finding')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-line bg-surface/70 p-3.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+        <div className="flex items-center gap-1.5 font-medium text-ink">
+          <Sparkles className="size-3.5 text-mint" />
+          <span>Explain in Simple English</span>
+          {data && (
+            <span className="text-[10px] text-ink-muted">({data.provider === 'openrouter' ? `OpenRouter · ${data.model}` : 'Deterministic'})</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={simplify}
+          disabled={loading}
+          className="flex items-center gap-1 rounded bg-ink px-2.5 py-1 text-[11px] font-medium text-paper hover:opacity-90 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="size-3 animate-spin" /> : <Bot className="size-3" />}
+          <span>{data ? 'Regenerate' : 'Simplify'}</span>
+        </button>
+      </div>
+
+      {err && <p className="mt-2 text-rose-500">{err}</p>}
+
+      {loading && !data && (
+        <div className="flex items-center gap-2 py-3 text-ink-muted">
+          <Loader2 className="size-3.5 animate-spin text-mint" />
+          <span>Simplifying finding in plain English with OpenRouter…</span>
+        </div>
+      )}
+
+      {!data && !loading && !err && (
+        <p className="mt-2 text-ink-muted">
+          Need a non-technical breakdown? Click Simplify to view this finding in clear, simple English.
+        </p>
+      )}
+
+      {data && (
+        <div className="mt-2.5 space-y-2">
+          <div>
+            <span className="font-semibold text-ink">What happened: </span>
+            <span className="text-ink/80">{data.what_happened}</span>
+          </div>
+          <div>
+            <span className="font-semibold text-ink">Why it matters: </span>
+            <span className="text-ink/80">{data.why_it_matters}</span>
+          </div>
+          <div className="rounded bg-mint-soft/50 p-2">
+            <span className="font-semibold text-ink">Recommendation: </span>
+            <span className="text-ink/80">{data.recommendation}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function PackageDetailDrawer({ packageId, node, findings, onClose }: Props) {
@@ -67,6 +155,8 @@ export function PackageDetailDrawer({ packageId, node, findings, onClose }: Prop
               </div>
               <h3 className="mt-3 font-semibold text-ink">{f.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink/70">{f.explanation}</p>
+
+              <FindingSimplificationCard finding={f} />
 
               {f.ranking_source === 'gemini' && f.ai_priority_score != null && (
                 <div className="mt-4 rounded-lg border border-line bg-mint-soft/50 p-3 text-xs text-ink/70">

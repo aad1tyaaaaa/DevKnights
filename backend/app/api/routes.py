@@ -18,9 +18,11 @@ from app.core.config import settings
 from app.core.security import limit_submissions
 from app.gate import TrustGate
 from app.github import GitHubApiError, GitHubService
+from app.llm.openrouter import OpenRouterSimplifier
 from app.models.database import ScanRepository
 from app.blockchain.registry import ReleaseRegistryReader
 from app.blockchain.verify import ReleaseVerifier
+from app.graph.comparison import compare_graphs
 from app.models.schemas import (
     ErrorResponse,
     Finding,
@@ -37,8 +39,13 @@ from app.models.schemas import (
     ScanDetail,
     ScanGraph,
     ScanRequest,
+    SimplifiedFindingResponse,
+    SimplifiedScanResponse,
+    SimplifyFindingRequest,
+    SimplifyScanRequest,
     VerificationResult,
     VerifyRequest,
+    VersionChangeResponse,
 )
 from app.parsers.npm_registry import NpmRegistryClient
 from app.services import ScanService
@@ -62,6 +69,14 @@ finding_ranker = (
     if settings.ai_ranking_enabled and settings.gemini_api_key is not None
     else None
 )
+openrouter_simplifier = OpenRouterSimplifier(
+    api_key=settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key is not None else None,
+    model=settings.openrouter_model,
+    base_url=settings.openrouter_base_url,
+    site_url=settings.openrouter_site_url,
+    app_name=settings.openrouter_app_name,
+    timeout_seconds=settings.openrouter_timeout_seconds,
+)
 scan_service = ScanService(
     ScanRepository(settings.database_url),
     NpmRegistryClient(
@@ -77,6 +92,7 @@ scan_service = ScanService(
         retries=settings.osv_retries,
     ),
     finding_ranker=finding_ranker,
+    llm_simplifier=openrouter_simplifier,
 )
 github_service = GitHubService(settings)
 
@@ -109,6 +125,10 @@ def get_release_verifier() -> ReleaseVerifier:
 
 def get_github_service() -> GitHubService:
     return github_service
+
+
+def get_openrouter_simplifier() -> OpenRouterSimplifier:
+    return openrouter_simplifier
 
 
 def _github_token(request: Request, github: GitHubService) -> str:
@@ -466,6 +486,7 @@ async def get_scan(
         created_at=row.created_at,
         project_name=row.project_name,
         summary=row.summary,
+        simplified=row.simplified,
         warnings=row.warnings,
         error=row.error,
     )
@@ -487,6 +508,7 @@ async def list_scans(
             created_at=row.created_at,
             project_name=row.project_name,
             summary=row.summary,
+            simplified=row.simplified,
             warnings=row.warnings,
             error=row.error,
         )
@@ -549,3 +571,152 @@ async def verify_release(
     verifier: Annotated[ReleaseVerifier, Depends(get_release_verifier)],
 ) -> VerificationResult:
     return await verifier.verify(body.package, body.version)
+
+
+async def _execute_scan_simplification(
+    scan_id: str,
+    target_language: str,
+    request: Request,
+    github: GitHubService,
+    service: ScanService,
+    simplifier: OpenRouterSimplifier,
+) -> SimplifiedScanResponse:
+    _, owner_id = await _github_credentials(request, github)
+    row = service.repository.get_owned(scan_id, owner_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
+    if row.status != "complete":
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Scan is {row.status}, must be complete")
+
+    findings = [Finding.model_validate(f) for f in service.repository.get_findings(scan_id)]
+
+    comparison: ScanComparisonResponse | None = None
+    if row.project_name and row.graph:
+        baseline_row = service.repository.find_latest_complete(
+            row.project_name, owner_id=row.owner_id, before=row.created_at, exclude_scan_id=scan_id
+        )
+        if baseline_row is not None and baseline_row.graph is not None:
+            try:
+                raw_comp = compare_graphs(
+                    ScanGraph.model_validate(baseline_row.graph),
+                    ScanGraph.model_validate(row.graph),
+                )
+                comparison = ScanComparisonResponse(
+                    baseline_scan_id=baseline_row.scan_id,
+                    current_scan_id=scan_id,
+                    added_packages=list(raw_comp.added_packages),
+                    removed_packages=list(raw_comp.removed_packages),
+                    version_changes=[
+                        VersionChangeResponse(
+                            name=c.name,
+                            from_versions=list(c.from_versions),
+                            to_versions=list(c.to_versions),
+                        )
+                        for c in raw_comp.version_changes
+                    ],
+                    added_edges=list(raw_comp.added_edges),
+                )
+            except Exception:
+                comparison = None
+
+    analysis, provider = await simplifier.simplify_scan_output(
+        project_name=row.project_name,
+        summary=row.summary,
+        findings=findings,
+        comparison=comparison,
+        language=target_language,
+    )
+
+    return SimplifiedScanResponse(
+        scan_id=scan_id,
+        language=target_language,
+        headline=analysis.headline,
+        summary=analysis.summary,
+        risk_level=analysis.risk_level,
+        key_points=analysis.key_points,
+        simplified_findings=analysis.simplified_findings,
+        action_items=analysis.action_items,
+        provider=provider,
+        model=simplifier.model_name,
+    )
+
+
+async def _execute_finding_simplification(
+    scan_id: str,
+    finding_id: str,
+    target_language: str,
+    request: Request,
+    github: GitHubService,
+    service: ScanService,
+    simplifier: OpenRouterSimplifier,
+) -> SimplifiedFindingResponse:
+    _, owner_id = await _github_credentials(request, github)
+    if service.repository.get_owned(scan_id, owner_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Scan not found")
+    findings = service.repository.get_findings(scan_id)
+    target = next((f for f in findings if f.get("id") == finding_id), None)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Finding not found")
+    finding_model = Finding.model_validate(target)
+    simplified_item, provider = await simplifier.simplify_single_finding(finding_model, language=target_language)
+    return SimplifiedFindingResponse(
+        finding_id=finding_id,
+        language=target_language,
+        title=simplified_item.title,
+        what_happened=simplified_item.what_happened,
+        why_it_matters=simplified_item.why_it_matters,
+        recommendation=simplified_item.recommendation,
+        provider=provider,
+        model=simplifier.model_name,
+    )
+
+
+@router.get("/api/scans/{scan_id}/simplify", response_model=SimplifiedScanResponse)
+async def get_scan_simplified(
+    scan_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    service: Annotated[ScanService, Depends(get_scan_service)],
+    simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
+    language: Annotated[str, Query(max_length=64)] = "English",
+) -> SimplifiedScanResponse:
+    return await _execute_scan_simplification(scan_id, language, request, github, service, simplifier)
+
+
+@router.post("/api/scans/{scan_id}/simplify", response_model=SimplifiedScanResponse)
+async def post_scan_simplified(
+    scan_id: str,
+    body: SimplifyScanRequest,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    service: Annotated[ScanService, Depends(get_scan_service)],
+    simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
+) -> SimplifiedScanResponse:
+    return await _execute_scan_simplification(scan_id, body.language, request, github, service, simplifier)
+
+
+@router.get("/api/scans/{scan_id}/findings/{finding_id}/simplify", response_model=SimplifiedFindingResponse)
+async def get_finding_simplified(
+    scan_id: str,
+    finding_id: str,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    service: Annotated[ScanService, Depends(get_scan_service)],
+    simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
+    language: Annotated[str, Query(max_length=64)] = "English",
+) -> SimplifiedFindingResponse:
+    return await _execute_finding_simplification(scan_id, finding_id, language, request, github, service, simplifier)
+
+
+@router.post("/api/scans/{scan_id}/findings/{finding_id}/simplify", response_model=SimplifiedFindingResponse)
+async def post_finding_simplified(
+    scan_id: str,
+    finding_id: str,
+    body: SimplifyFindingRequest,
+    request: Request,
+    github: Annotated[GitHubService, Depends(get_github_service)],
+    service: Annotated[ScanService, Depends(get_scan_service)],
+    simplifier: Annotated[OpenRouterSimplifier, Depends(get_openrouter_simplifier)],
+) -> SimplifiedFindingResponse:
+    return await _execute_finding_simplification(scan_id, finding_id, body.language, request, github, service, simplifier)
+

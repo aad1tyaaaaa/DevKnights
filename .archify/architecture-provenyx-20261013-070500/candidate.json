@@ -1,0 +1,692 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Provenyx (DevKnights) System Architecture",
+    "output": ".archify/architecture-provenyx-20261013-070500/provenyx-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/aad1tyaaaaa/DevKnights.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "b98a3019fc43c44e22f407f057b44d196872644c"
+    }
+  },
+  "components": [
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "VS Code user / browser",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        140,
+        70
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "extension",
+      "type": "frontend",
+      "label": "VS Code extension",
+      "sublabel": "TS, esbuild, TreeView",
+      "pos": [
+        260,
+        160
+      ],
+      "size": [
+        190,
+        70
+      ],
+      "tag": "consent modal",
+      "sources": [
+        {
+          "path": "extension/src/extension.ts",
+          "line": 51,
+          "end_line": 103,
+          "label": "activate: commands, watcher"
+        },
+        {
+          "path": "extension/src/commands/scanDependencies.ts",
+          "line": 24,
+          "end_line": 75,
+          "label": "consent, submit, poll"
+        },
+        {
+          "path": "extension/src/services/lockfileWatcher.ts",
+          "line": 8,
+          "end_line": 22,
+          "label": "debounced watcher"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Next.js dashboard",
+      "sublabel": "App Router, Cytoscape graph",
+      "pos": [
+        260,
+        320
+      ],
+      "size": [
+        190,
+        70
+      ],
+      "tag": "Vercel",
+      "sources": [
+        {
+          "path": "frontend/lib/api.ts",
+          "line": 16,
+          "end_line": 41,
+          "label": "apiFetch with credentials"
+        },
+        {
+          "path": "frontend/next.config.mjs",
+          "line": 8,
+          "end_line": 25,
+          "label": "/api proxy rewrites"
+        },
+        {
+          "path": "frontend/proxy.ts",
+          "line": 8,
+          "end_line": 15,
+          "label": "server-side API key"
+        }
+      ]
+    },
+    {
+      "id": "gh-action",
+      "type": "cloud",
+      "label": "GitHub Action trust gate",
+      "sublabel": "composite action, PR comment",
+      "pos": [
+        260,
+        480
+      ],
+      "size": [
+        190,
+        70
+      ],
+      "tag": "CI",
+      "sources": [
+        {
+          "path": "action.yml",
+          "line": 36,
+          "end_line": 76,
+          "label": "runs python -m app.gate"
+        },
+        {
+          "path": ".github/workflows/dependency-trust-gate.yml",
+          "line": 3,
+          "end_line": 27,
+          "label": "PR lockfile matrix"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI backend",
+      "sublabel": "Uvicorn, API key + CORS middleware",
+      "pos": [
+        640,
+        320
+      ],
+      "size": [
+        210,
+        74
+      ],
+      "tag": "Render",
+      "sources": [
+        {
+          "path": "backend/app/main.py",
+          "line": 25,
+          "end_line": 53,
+          "label": "app, middleware, router"
+        },
+        {
+          "path": "backend/app/core/security.py",
+          "line": 31,
+          "end_line": 46,
+          "label": "X-Provenyx-Key / bearer"
+        },
+        {
+          "path": "backend/app/api/routes.py",
+          "line": 381,
+          "end_line": 406,
+          "label": "POST /api/scans -> 202"
+        }
+      ]
+    },
+    {
+      "id": "scan-service",
+      "type": "backend",
+      "label": "ScanService pipeline",
+      "sublabel": "parse -> graph -> rules -> rank",
+      "pos": [
+        1040,
+        320
+      ],
+      "size": [
+        210,
+        74
+      ],
+      "tag": "background task",
+      "sources": [
+        {
+          "path": "backend/app/services.py",
+          "line": 56,
+          "end_line": 153,
+          "label": "analyze_scan"
+        },
+        {
+          "path": "backend/app/graph/builder.py",
+          "line": 1,
+          "label": "NetworkX graph"
+        },
+        {
+          "path": "backend/app/detection/rules.py",
+          "line": 1,
+          "label": "explainable rules"
+        }
+      ]
+    },
+    {
+      "id": "trust-gate",
+      "type": "backend",
+      "label": "TrustGate",
+      "sublabel": "base vs head lockfile diff",
+      "pos": [
+        640,
+        480
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "tag": "CLI + HTTP",
+      "sources": [
+        {
+          "path": "backend/app/gate.py",
+          "line": 69,
+          "end_line": 138,
+          "label": "evaluate changed releases"
+        },
+        {
+          "path": "backend/app/api/routes.py",
+          "line": 409,
+          "end_line": 428,
+          "label": "POST /api/gate"
+        }
+      ]
+    },
+    {
+      "id": "github-service",
+      "type": "security",
+      "label": "GitHubService",
+      "sublabel": "OAuth + encrypted cookie",
+      "pos": [
+        640,
+        160
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "tag": "AES-256-GCM",
+      "sources": [
+        {
+          "path": "backend/app/github.py",
+          "line": 27,
+          "end_line": 58,
+          "label": "EncryptedCookieCodec"
+        },
+        {
+          "path": "backend/app/api/routes.py",
+          "line": 261,
+          "end_line": 311,
+          "label": "login + callback routes"
+        },
+        {
+          "path": "backend/app/github.py",
+          "line": 159,
+          "end_line": 205,
+          "label": "fetch_lockfile / find_lockfiles"
+        }
+      ]
+    },
+    {
+      "id": "verifier",
+      "type": "security",
+      "label": "ReleaseVerifier",
+      "sublabel": "keccak256 manifest vs anchor",
+      "pos": [
+        1040,
+        480
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "tag": "read-only",
+      "sources": [
+        {
+          "path": "backend/app/blockchain/verify.py",
+          "line": 24,
+          "end_line": 51,
+          "label": "verify: match/mismatch"
+        },
+        {
+          "path": "backend/app/blockchain/registry.py",
+          "line": 76,
+          "end_line": 90,
+          "label": "eth_call recordOf"
+        },
+        {
+          "path": "backend/app/api/routes.py",
+          "line": 546,
+          "end_line": 551,
+          "label": "POST /api/releases/verify"
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Scan store",
+      "sublabel": "SQLAlchemy: SQLite / Neon Postgres",
+      "pos": [
+        1040,
+        160
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "tag": "scans, scan_findings",
+      "sources": [
+        {
+          "path": "backend/app/models/database.py",
+          "line": 14,
+          "end_line": 37,
+          "label": "ScanRow, ScanFindingRow"
+        },
+        {
+          "path": "backend/app/models/database.py",
+          "line": 49,
+          "end_line": 53,
+          "label": "engine, pool_pre_ping"
+        },
+        {
+          "path": "backend/app/core/config.py",
+          "line": 25,
+          "label": "PROVENYX_DATABASE_URL"
+        }
+      ]
+    },
+    {
+      "id": "github-api",
+      "type": "external",
+      "label": "GitHub",
+      "sublabel": "OAuth + REST API",
+      "pos": [
+        640,
+        30
+      ],
+      "size": [
+        210,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/app/github.py",
+          "line": 85,
+          "end_line": 104,
+          "label": "exchange_code"
+        },
+        {
+          "path": "backend/app/github.py",
+          "line": 207,
+          "end_line": 211,
+          "label": "api.github.com GET"
+        }
+      ]
+    },
+    {
+      "id": "npm",
+      "type": "external",
+      "label": "npm registry",
+      "sublabel": "registry.npmjs.org",
+      "pos": [
+        1440,
+        160
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/app/parsers/npm_registry.py",
+          "line": 31,
+          "end_line": 60,
+          "label": "NpmRegistryClient"
+        }
+      ]
+    },
+    {
+      "id": "osv",
+      "type": "external",
+      "label": "OSV.dev",
+      "sublabel": "/v1/querybatch advisories",
+      "pos": [
+        1440,
+        320
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/app/detection/osv.py",
+          "line": 24,
+          "end_line": 107,
+          "label": "OsvClient querybatch"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "type": "external",
+      "label": "Gemini",
+      "sublabel": "optional finding reranker",
+      "pos": [
+        1440,
+        480
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "backend/app/detection/ai_ranker.py",
+          "line": 27,
+          "end_line": 69,
+          "label": "generateContent"
+        },
+        {
+          "path": "backend/app/core/config.py",
+          "line": 35,
+          "end_line": 37,
+          "label": "disabled by default"
+        }
+      ]
+    },
+    {
+      "id": "chain",
+      "type": "database",
+      "label": "ReleaseRegistry.sol",
+      "sublabel": "Hardhat local chain :8545",
+      "pos": [
+        1040,
+        640
+      ],
+      "size": [
+        210,
+        70
+      ],
+      "tag": "write-once, owner-only",
+      "sources": [
+        {
+          "path": "contracts/contracts/ReleaseRegistry.sol",
+          "line": 8,
+          "end_line": 46,
+          "label": "anchor / recordOf"
+        },
+        {
+          "path": "contracts/scripts/anchor.ts",
+          "line": 16,
+          "end_line": 37,
+          "label": "owner anchors hashes"
+        },
+        {
+          "path": "contracts/scripts/deploy.ts",
+          "line": 12,
+          "end_line": 26,
+          "label": "writes deployments json"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Clients (developer machine / Vercel / GitHub runner)",
+      "wraps": [
+        "extension",
+        "dashboard",
+        "gh-action"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Provenyx API process (Render, backend/app)",
+      "wraps": [
+        "api",
+        "scan-service",
+        "trust-gate",
+        "github-service",
+        "verifier"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Public upstream services",
+      "wraps": [
+        "npm",
+        "osv",
+        "gemini"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "dev-extension",
+      "from": "developer",
+      "to": "extension",
+      "label": "Scan Dependencies",
+      "variant": "emphasis"
+    },
+    {
+      "id": "dev-dashboard",
+      "from": "developer",
+      "to": "dashboard",
+      "label": "browse"
+    },
+    {
+      "id": "dev-pr",
+      "from": "developer",
+      "to": "gh-action",
+      "label": "open PR",
+      "variant": "dashed"
+    },
+    {
+      "id": "ext-dashboard",
+      "from": "extension",
+      "to": "dashboard",
+      "label": "Open in Dashboard (handoff URL)",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "ext-api",
+      "from": "extension",
+      "to": "api",
+      "label": "POST /api/scans (GitHub bearer)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "dash-api",
+      "from": "dashboard",
+      "to": "api",
+      "label": "/api/* via Next proxy + cookie",
+      "variant": "emphasis"
+    },
+    {
+      "id": "action-gate",
+      "from": "gh-action",
+      "to": "trust-gate",
+      "label": "runs app.gate CLI",
+      "variant": "dashed"
+    },
+    {
+      "id": "api-github-svc",
+      "from": "api",
+      "to": "github-service",
+      "label": "OAuth login, repo scans",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "github-svc-github",
+      "from": "github-service",
+      "to": "github-api",
+      "label": "token exchange, /user, /repos contents",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "api-scan-service",
+      "from": "api",
+      "to": "scan-service",
+      "label": "BackgroundTasks analyze_scan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-trust-gate",
+      "from": "api",
+      "to": "trust-gate",
+      "label": "POST /api/gate",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "api-verifier",
+      "from": "api",
+      "to": "verifier",
+      "label": "POST /api/releases/verify",
+      "variant": "security",
+      "toSide": "top"
+    },
+    {
+      "id": "scan-db",
+      "from": "scan-service",
+      "to": "db",
+      "label": "SQL: snapshot, graph, findings",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "api-db",
+      "from": "api",
+      "to": "db",
+      "label": "read scans (owner-scoped)",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "scan-npm",
+      "from": "scan-service",
+      "to": "npm",
+      "label": "HTTPS metadata, bounded concurrency"
+    },
+    {
+      "id": "scan-osv",
+      "from": "scan-service",
+      "to": "osv",
+      "label": "HTTPS querybatch"
+    },
+    {
+      "id": "scan-gemini",
+      "from": "scan-service",
+      "to": "gemini",
+      "label": "summaries only, if enabled",
+      "variant": "dashed"
+    },
+    {
+      "id": "gate-verifier",
+      "from": "trust-gate",
+      "to": "verifier",
+      "label": "anchor check",
+      "variant": "dashed"
+    },
+    {
+      "id": "verifier-chain",
+      "from": "verifier",
+      "to": "chain",
+      "label": "JSON-RPC eth_call recordOf (no keys)",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Entry points",
+      "items": [
+        "VS Code extension: finds package-lock.json, validates locally, modal consent names the API URL, then polls scan status and findings",
+        "Dashboard: upload or GitHub-repo scans; on Vercel /api/* and /health are rewritten to the Render API so the session cookie stays first-party",
+        "GitHub Action: reads the base lockfile from the PR base SHA, runs app.gate, posts/updates one PR comment and fails on verdict 'fail'"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Scan pipeline (services.py analyze_scan)",
+      "items": [
+        "parse_lockfile v1-v3 -> build_dependency_graph (NetworkX, nearest-ancestor resolution)",
+        "npm metadata fetch_many (cache, semaphore, retries) -> OSV known-vulnerability check on every release",
+        "Baseline = latest complete scan of the same project and owner; change rules: new-dependency, dependency-expansion, publisher-change, install-script, provenance-removed, unusual-release-timing",
+        "Optional Gemini rerank; AiRankingError keeps deterministic order. Failure stores only the exception type",
+        "Lifespan recover_interrupted re-runs scans left 'accepted'/'analyzing' after a restart"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Access control",
+      "items": [
+        "require_api_key middleware: X-Provenyx-Key on every route except /health and OAuth redirects; GitHub Bearer accepted on /api/scans",
+        "Scan rows carry owner_id (pseudonymous GitHub subject); reads use get_owned / list_recent",
+        "GitHub token lives only in an AES-256-GCM sealed HTTP-only cookie; never stored server-side",
+        "Sliding-window submission rate limit per client address (in-process, per worker); body capped at 10 MiB while streaming"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Release verification",
+      "items": [
+        "release_id = keccak256('name@version'); manifest_hash = keccak256(canonical JSON with dist.integrity)",
+        "Backend only reads the chain (eth_chainId + eth_call recordOf); anchoring is an owner-only Hardhat script",
+        "Results: match / mismatch / no_record / unavailable. no_record is an evidence gap, not a risk signal"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Deployment & persistence",
+      "items": [
+        "render.yaml: python web service, rootDir backend, uvicorn --proxy-headers, health check /health, generated API key + session secret",
+        "PROVENYX_DATABASE_URL: SQLite backend/provenyx.db locally, Neon Postgres in production (postgres:// normalized to psycopg; pool_pre_ping)",
+        "Uncommitted in the worktree: an OpenRouter simplifier (backend/app/llm/) that summarises findings after analysis; not shown as it is not at the pinned revision"
+      ]
+    }
+  ]
+}

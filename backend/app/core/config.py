@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
     gemini_timeout_seconds: float = 10.0
+    openrouter_api_key: SecretStr | None = None
+    openrouter_model: str = "google/gemini-2.0-flash-001"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_site_url: str = "https://provenyx.dev"
+    openrouter_app_name: str = "Provenyx"
+    openrouter_timeout_seconds: float = 15.0
+    openrouter_default_language: str = "English"
     github_client_id: str | None = None
     github_client_secret: SecretStr | None = None
     github_session_secret: SecretStr | None = None
@@ -94,6 +101,10 @@ class Settings(BaseSettings):
     @property
     def github_auth_configured(self) -> bool:
         return bool(self.github_client_id and self.github_client_secret and self.github_session_secret)
+
+    @property
+    def openrouter_configured(self) -> bool:
+        return self.openrouter_api_key is not None and bool(self.openrouter_api_key.get_secret_value().strip())
 
 
 settings = Settings()

@@ -109,6 +109,7 @@ class ScanDetail(BaseModel):
     created_at: datetime
     project_name: str | None
     summary: ScanSummary | None = None
+    simplified: dict[str, Any] | None = None
     warnings: list[str] = Field(default_factory=list)
     error: str | None = None
 
@@ -278,3 +279,50 @@ class GateReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list, description="Lockfile resolution notes about changed releases")
     markdown: str
+
+
+class SimplifiedFindingItem(BaseModel):
+    finding_id: str
+    package: str
+    version: str
+    title: str
+    what_happened: str
+    why_it_matters: str
+    recommendation: str
+
+
+class SimplifiedScanResponse(BaseModel):
+    scan_id: str
+    language: str
+    headline: str
+    summary: str
+    risk_level: str
+    key_points: list[str] = Field(default_factory=list)
+    simplified_findings: list[SimplifiedFindingItem] = Field(default_factory=list)
+    action_items: list[str] = Field(default_factory=list)
+    provider: Literal["openrouter", "fallback"] = "fallback"
+    model: str
+
+
+class SimplifyScanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: str = Field(default="English", max_length=64, description="Target understanding language for explanation")
+
+
+class SimplifyFindingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: str = Field(default="English", max_length=64, description="Target understanding language for explanation")
+
+
+class SimplifiedFindingResponse(BaseModel):
+    finding_id: str
+    language: str
+    title: str
+    what_happened: str
+    why_it_matters: str
+    recommendation: str
+    provider: Literal["openrouter", "fallback"] = "fallback"
+    model: str
+

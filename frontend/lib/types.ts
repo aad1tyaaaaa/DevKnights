@@ -36,6 +36,40 @@ export interface ScanSummary {
   findings: number
 }
 
+export interface SimplifiedFindingItem {
+  finding_id: string
+  package: string
+  version: string
+  title: string
+  what_happened: string
+  why_it_matters: string
+  recommendation: string
+}
+
+export interface SimplifiedScanResponse {
+  scan_id: string
+  language: string
+  headline: string
+  summary: string
+  risk_level: string
+  key_points: string[]
+  simplified_findings: SimplifiedFindingItem[]
+  action_items: string[]
+  provider: 'openrouter' | 'fallback'
+  model: string
+}
+
+export interface SimplifiedFindingResponse {
+  finding_id: string
+  language: string
+  title: string
+  what_happened: string
+  why_it_matters: string
+  recommendation: string
+  provider: 'openrouter' | 'fallback'
+  model: string
+}
+
 export interface Scan {
   scan_id: string
   status: ScanStatus
@@ -43,6 +77,7 @@ export interface Scan {
   project_name: string | null
   error: string | null
   summary: ScanSummary | null
+  simplified?: SimplifiedScanResponse | null
   warnings?: string[]
 }
 

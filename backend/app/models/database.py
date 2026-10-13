@@ -23,6 +23,7 @@ class ScanRow(Base):
     summary: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     graph: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     warnings: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    simplified: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(Text)
 
 
@@ -51,9 +52,13 @@ class ScanRepository:
         self._engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
         self._sessions = sessionmaker(self._engine, expire_on_commit=False)
         Base.metadata.create_all(self._engine)
-        if "owner_id" not in {column["name"] for column in inspect(self._engine).get_columns("scans")}:
+        existing_columns = {column["name"] for column in inspect(self._engine).get_columns("scans")}
+        if "owner_id" not in existing_columns:
             with self._engine.begin() as connection:
                 connection.execute(text("ALTER TABLE scans ADD COLUMN owner_id VARCHAR(64)"))
+        if "simplified" not in existing_columns:
+            with self._engine.begin() as connection:
+                connection.execute(text("ALTER TABLE scans ADD COLUMN simplified JSON"))
         for index in ScanRow.__table__.indexes:
             index.create(self._engine, checkfirst=True)
 
@@ -85,6 +90,7 @@ class ScanRepository:
         graph: dict[str, Any],
         findings: list[dict[str, Any]],
         warnings: list[str],
+        simplified: dict[str, Any] | None = None,
     ) -> None:
         with self._sessions.begin() as session:
             row = session.get(ScanRow, scan_id)
@@ -95,6 +101,7 @@ class ScanRepository:
             row.summary = summary
             row.graph = graph
             row.warnings = warnings
+            row.simplified = simplified
             row.error = None
             session.execute(delete(ScanFindingRow).where(ScanFindingRow.scan_id == scan_id))
             session.add_all(

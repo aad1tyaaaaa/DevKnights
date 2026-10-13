@@ -9,6 +9,7 @@ from app.detection.ai_ranker import AiRankingError, GeminiFindingRanker
 from app.detection.osv import OsvClient
 from app.graph.builder import build_dependency_graph
 from app.graph.comparison import compare_graphs
+from app.llm.openrouter import OpenRouterSimplifier
 from app.detection.rules import (
     detect_graph_changes,
     detect_install_script_changes,
@@ -42,11 +43,13 @@ class ScanService:
         *,
         osv: OsvClient | None = None,
         finding_ranker: GeminiFindingRanker | None = None,
+        llm_simplifier: OpenRouterSimplifier | None = None,
     ) -> None:
         self.repository = repository
         self.registry = registry
         self.osv = osv
         self.finding_ranker = finding_ranker
+        self.llm_simplifier = llm_simplifier
 
     def create_scan(self, lockfile: dict[str, Any], project_name: str | None, owner_id: str | None = None) -> str:
         scan_id = str(uuid.uuid4())
@@ -131,8 +134,34 @@ class ScanService:
                     findings = await self.finding_ranker.rank(findings)
                 except AiRankingError:
                     analysis_warnings.append("AI ranking was unavailable; deterministic priorities were retained")
-            scan_graph = scan_graph.model_copy(update={"warnings": analysis_warnings})
             direct_count = sum(node.direct for node in nodes)
+            simplified_payload = None
+            if self.llm_simplifier is not None and self.llm_simplifier.is_configured:
+                try:
+                    analysis, provider = await self.llm_simplifier.simplify_scan_output(
+                        project_name=project_name,
+                        summary={
+                            "packages": len(nodes),
+                            "direct": direct_count,
+                            "transitive": len(nodes) - direct_count,
+                            "findings": len(findings),
+                        },
+                        findings=findings,
+                        comparison=comparison if (baseline_row is not None and baseline_row.graph is not None) else None,
+                    )
+                    simplified_payload = {
+                        "headline": analysis.headline,
+                        "summary": analysis.summary,
+                        "risk_level": analysis.risk_level,
+                        "key_points": analysis.key_points,
+                        "simplified_findings": [f.model_dump() for f in analysis.simplified_findings],
+                        "action_items": analysis.action_items,
+                        "provider": provider,
+                        "model": self.llm_simplifier.model_name,
+                    }
+                except Exception as exc:
+                    logger.warning("Auto-simplification of scan %s failed: %s", scan_id, exc)
+            scan_graph = scan_graph.model_copy(update={"warnings": analysis_warnings})
             summary = ScanSummary(
                 packages=len(nodes),
                 direct=direct_count,
@@ -146,6 +175,7 @@ class ScanService:
                 graph=scan_graph.model_dump(mode="json", by_alias=True),
                 findings=[finding.model_dump(mode="json") for finding in findings],
                 warnings=analysis_warnings,
+                simplified=simplified_payload,
             )
         except Exception as exc:
             # Full detail goes to the server log; the API only exposes the exception type.

@@ -13,6 +13,7 @@ import { PageHeader, secondaryButton } from '@/components/page-header'
 import { ScanProgress } from '@/components/scan-progress'
 import { EmptyState, ErrorState, LoadingState } from '@/components/states'
 import { SEVERITY_ORDER } from '@/components/badges'
+import { SimplifiedScanView } from '@/components/simplified-scan-view'
 import { useApi } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { ROOT_ID, type DependencyGraphData, type Finding, type Scan, type Severity } from '@/lib/types'
@@ -119,6 +120,8 @@ function CompleteScan({ scan }: { scan: Scan }) {
         <MetricCard label="Transitive" value={s?.transitive ?? '—'} icon={Network} share={s?.packages ? s.transitive / s.packages : undefined} hint={s?.packages ? `${pct(s.transitive, s.packages)} of packages` : undefined} />
         <MetricCard label="Findings" value={s?.findings ?? '—'} icon={CircleAlert} tone={s?.findings ? 'warn' : 'default'} hint="Leads to investigate, not verdicts" />
       </div>
+
+      <SimplifiedScanView scanId={scan.scan_id} initialSimplified={scan.simplified} />
 
       {warnings.length > 0 && (
         <details className="rounded-xl border border-line bg-panel p-5 text-sm">
