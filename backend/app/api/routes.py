@@ -71,7 +71,7 @@ finding_ranker = (
     else None
 )
 openrouter_simplifier = OpenRouterSimplifier(
-    api_key=settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key is not None else None,
+    api_keys=settings.openrouter_key_list,
     model=settings.openrouter_model,
     base_url=settings.openrouter_base_url,
     site_url=settings.openrouter_site_url,

@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
     gemini_timeout_seconds: float = 10.0
     openrouter_api_key: SecretStr | None = None
-    openrouter_model: str = "google/gemini-2.0-flash-001"
+    openrouter_api_keys: SecretStr | None = None
+    openrouter_model: str = "liquid/lfm-2.5-2.6b:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_site_url: str = "https://provenyx.dev"
     openrouter_app_name: str = "Provenyx"
@@ -104,7 +105,19 @@ class Settings(BaseSettings):
 
     @property
     def openrouter_configured(self) -> bool:
-        return self.openrouter_api_key is not None and bool(self.openrouter_api_key.get_secret_value().strip())
+        return len(self.openrouter_key_list) > 0
+
+    @property
+    def openrouter_key_list(self) -> list[str]:
+        keys: list[str] = []
+        if self.openrouter_api_keys is not None:
+            raw = self.openrouter_api_keys.get_secret_value()
+            keys.extend(k.strip() for k in raw.split(",") if k.strip())
+        if self.openrouter_api_key is not None:
+            raw_single = self.openrouter_api_key.get_secret_value().strip()
+            if raw_single and raw_single not in keys:
+                keys.append(raw_single)
+        return keys
 
 
 settings = Settings()

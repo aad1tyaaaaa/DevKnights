@@ -40,20 +40,28 @@ class OpenRouterSimplifier:
     """Connects to OpenRouter to translate technical dependency security changes
 
     and findings into plain, accessible language for developers and team members.
+    Supports rotating through multiple API keys to prevent exhaustion and rate-limits.
     """
 
     def __init__(
         self,
         *,
         api_key: str | None = None,
-        model: str = "google/gemini-2.0-flash-001",
+        api_keys: list[str] | None = None,
+        model: str = "liquid/lfm-2.5-2.6b:free",
         base_url: str = "https://openrouter.ai/api/v1",
         site_url: str = "https://provenyx.dev",
         app_name: str = "Provenyx",
         timeout_seconds: float = 15.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self._api_key = api_key
+        self._keys: list[str] = []
+        if api_keys:
+            self._keys.extend(k.strip() for k in api_keys if k and k.strip())
+        if api_key and api_key.strip() and api_key.strip() not in self._keys:
+            self._keys.append(api_key.strip())
+
+        self._key_index = 0
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._site_url = site_url
@@ -63,11 +71,18 @@ class OpenRouterSimplifier:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self._api_key and self._api_key.strip())
+        return len(self._keys) > 0
 
     @property
     def model_name(self) -> str:
         return self._model
+
+    def _get_next_key(self) -> str:
+        if not self._keys:
+            raise OpenRouterError("No OpenRouter API key configured")
+        key = self._keys[self._key_index % len(self._keys)]
+        self._key_index = (self._key_index + 1) % len(self._keys)
+        return key
 
     async def simplify_scan_output(
         self,
@@ -154,15 +169,9 @@ class OpenRouterSimplifier:
             raise OpenRouterError(f"OpenRouter response could not be parsed into SimplifiedAnalysis: {exc}") from exc
 
     async def _call_openrouter_raw(self, prompt: str) -> str:
-        if not self._api_key:
+        if not self._keys:
             raise OpenRouterError("No OpenRouter API key configured")
 
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "HTTP-Referer": self._site_url,
-            "X-Title": self._app_name,
-            "Content-Type": "application/json",
-        }
         body = {
             "model": self._model,
             "messages": [
@@ -182,18 +191,45 @@ class OpenRouterSimplifier:
         }
 
         endpoint = f"{self._base_url}/chat/completions"
-        try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout,
-                transport=self._transport,
-                follow_redirects=True,
-            ) as client:
-                response = await client.post(endpoint, headers=headers, json=body)
-            response.raise_for_status()
-            payload = response.json()
-            return payload["choices"][0]["message"]["content"]
-        except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
-            raise OpenRouterError(f"OpenRouter API request failed: {exc}") from exc
+        total_keys = len(self._keys)
+        last_exc: Exception | None = None
+
+        # Try across keys with rotation; if a key hits 429/401/402/quota error, automatically advance to next
+        for _ in range(total_keys):
+            api_key = self._get_next_key()
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "HTTP-Referer": self._site_url,
+                "X-Title": self._app_name,
+                "Content-Type": "application/json",
+            }
+            try:
+                async with httpx.AsyncClient(
+                    timeout=self._timeout,
+                    transport=self._transport,
+                    follow_redirects=True,
+                ) as client:
+                    response = await client.post(endpoint, headers=headers, json=body)
+                response.raise_for_status()
+                payload = response.json()
+                return payload["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                if exc.response.status_code in (401, 402, 429, 503) and total_keys > 1:
+                    logger.warning(
+                        "OpenRouter key returned HTTP %s; rotating to next available key...",
+                        exc.response.status_code,
+                    )
+                    continue
+                raise OpenRouterError(f"OpenRouter API request failed: {exc}") from exc
+            except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
+                last_exc = exc
+                if total_keys > 1:
+                    logger.warning("OpenRouter request error (%s); rotating to next key...", exc)
+                    continue
+                raise OpenRouterError(f"OpenRouter API request failed: {exc}") from exc
+
+        raise OpenRouterError(f"All configured OpenRouter keys exhausted: {last_exc}") from last_exc
 
     def _build_scan_prompt(
         self,
