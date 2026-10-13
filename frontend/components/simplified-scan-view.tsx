@@ -27,6 +27,7 @@ export function SimplifiedScanView({ scanId, initialSimplified }: Props) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ language: 'English' }),
+          signal: AbortSignal.timeout(30_000),
         },
       )
       if (res.state === 'ok') {
