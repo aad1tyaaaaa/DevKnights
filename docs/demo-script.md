@@ -10,7 +10,7 @@ Owner: Aaditya. Presenters alternate between Aaditya and Omkar.
 | 2 | chain | `npm --prefix contracts run node` | stays running on :8545 |
 | 3 | chain | `npm --prefix contracts run deploy:local`, then copy `demo/anchors.demo.json` to `contracts/anchors.json` and run `npm --prefix contracts run anchor:local` | Prints `anchor ms@2.1.3` and `anchor ms@2.1.2` |
 | 4 | frontend | `npm run dev:frontend` | <http://localhost:3000/dashboard> shows **Backend connected** |
-| 5 | VS Code | Install `extension/provenyx-security-0.1.0.vsix` (or press F5) and open a real npm project | Provenyx sidebar shows **Backend: Connected** |
+| 5 | VS Code | Install **Provenyx Security** (`OmkarPramodBandikatte.provenyx-security`) from the Marketplace (or press F5) and open a real npm project | Provenyx sidebar shows **Backend: Connected** |
 
 `demo/anchors.demo.json` holds the real `ms@2.1.3` manifest hash (it matches) and a deliberately altered hash for `ms@2.1.2` (it mismatches). To anchor other releases, generate entries with `python -m app.blockchain.manifest name@version` in `backend/`.
 
@@ -32,5 +32,5 @@ Seed findings before the demo: scan `demo/fixtures/baseline-package-lock.json`, 
 
 - **Chain down:** verification shows *Verification unavailable*. That is the honest result; restart the node, redeploy, and re-anchor.
 - **Backend down:** the sidebar shows *Unreachable* and the scan fails cleanly. This doubles as the "offline handling" story.
-- **Marketplace pending:** install from `provenyx-security-0.1.0.vsix`.
+- **Marketplace install fails:** install a packaged `extension/provenyx-security-<version>.vsix`. Uninstall the obsolete `Provenyx.provenyx-security` first.
 - **Live demo fails:** play the backup recording (record it after Phase 7).

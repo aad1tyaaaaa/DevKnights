@@ -33,21 +33,39 @@ async function migrateLegacyApiUrl(context: vscode.ExtensionContext): Promise<vo
   await context.globalState.update(API_URL_MIGRATION_KEY, true);
 }
 
-async function warnAboutLegacyExtension(context: vscode.ExtensionContext): Promise<void> {
+async function warnAboutLegacyExtension(): Promise<void> {
   if (!vscode.extensions.getExtension(LEGACY_EXTENSION_ID)) return;
+  const uninstall = 'Uninstall';
   const open = 'Show Legacy Extension';
   const choice = await vscode.window.showWarningMessage(
     'Provenyx: The obsolete Provenyx.provenyx-security extension is also installed and can override the deployed API URL. Uninstall it, then reload VS Code.',
+    uninstall,
     open,
   );
   if (choice === open) {
     await vscode.commands.executeCommand('workbench.extensions.search', `@id:${LEGACY_EXTENSION_ID}`);
+  } else if (choice === uninstall) {
+    await vscode.commands.executeCommand('workbench.extensions.uninstallExtension', LEGACY_EXTENSION_ID);
+    const reload = 'Reload Window';
+    if ((await vscode.window.showInformationMessage('Provenyx: Legacy extension uninstalled.', reload)) === reload) {
+      await vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }
+  }
+}
+
+// The legacy extension registers the same command IDs; if it activated first, registering
+// ours throws. Skip the duplicate so the rest of activation (sidebar, watcher) still runs.
+function registerCommand(id: string, handler: (...args: any[]) => unknown): vscode.Disposable {
+  try {
+    return vscode.commands.registerCommand(id, handler);
+  } catch {
+    return new vscode.Disposable(() => undefined);
   }
 }
 
 export async function activate(context: vscode.ExtensionContext) {
   await migrateLegacyApiUrl(context);
-  void warnAboutLegacyExtension(context);
+  void warnAboutLegacyExtension();
   const tree = new FindingsTreeProvider();
 
   const scanExistingLockfiles = async (folder?: vscode.WorkspaceFolder) => {
@@ -68,18 +86,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('provenyx.findings', tree),
-    vscode.commands.registerCommand('provenyx.scanDependencies', (uri?: vscode.Uri) =>
+    registerCommand('provenyx.scanDependencies', (uri?: vscode.Uri) =>
       scanDependencies(tree, uri instanceof vscode.Uri ? uri : undefined),
     ),
-    vscode.commands.registerCommand('provenyx.showFindings', () =>
+    registerCommand('provenyx.showFindings', () =>
       vscode.commands.executeCommand('provenyx.findings.focus'),
     ),
     // Optional path (e.g. "/scans/<id>") is passed by sidebar items.
-    vscode.commands.registerCommand('provenyx.openDashboard', (path?: unknown) =>
+    registerCommand('provenyx.openDashboard', (path?: unknown) =>
       openDashboard(typeof path === 'string' && path.startsWith('/') ? path : ''),
     ),
-    vscode.commands.registerCommand('provenyx.checkBackend', () => checkBackend(true)),
-    vscode.commands.registerCommand('provenyx.signIn', () => requireGitHubSession()),
+    registerCommand('provenyx.checkBackend', () => checkBackend(true)),
+    registerCommand('provenyx.signIn', () => requireGitHubSession()),
     createLockfileWatcher((uri) => void scanDependencies(tree, uri)),
     vscode.workspace.onDidChangeWorkspaceFolders((event) => {
       tree.refresh();

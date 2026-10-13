@@ -6,9 +6,9 @@ import { API_BASE_URL } from '@/lib/config'
 export const metadata: Metadata = { title: 'Settings' }
 
 const EXTENSION_SETTINGS = [
-  { key: 'provenyx.apiBaseUrl', value: 'http://localhost:8000', note: 'Where lockfiles are sent after you confirm a scan.' },
-  { key: 'provenyx.dashboardUrl', value: 'http://localhost:3000', note: 'Opened by “Provenyx: Open Dashboard”.' },
-  { key: 'provenyx.autoScanEnabled', value: 'false', note: 'Offer a scan when package-lock.json changes. Still asks before sending.' },
+  { key: 'provenyx.apiBaseUrl', value: 'https://devknights.onrender.com', note: 'Where lockfiles are sent after you confirm a scan. Use http://localhost:8000 for a local API.' },
+  { key: 'provenyx.dashboardUrl', value: 'https://provenyx.vercel.app', note: 'Opened by “Provenyx: Open Dashboard”.' },
+  { key: 'provenyx.autoScanEnabled', value: 'true', note: 'Offer a scan when package-lock.json changes. Still asks before sending.' },
 ]
 
 function Code({ children }: { children: React.ReactNode }) {
@@ -36,8 +36,9 @@ export default function SettingsPage() {
             Start the API: in <Code>backend/</Code> run <Code>uvicorn app.main:app --port 8000</Code>.
           </li>
           <li>
-            Open the repository in VS Code and press <Code>F5</Code> (“Run Provenyx Extension”), or install a packaged{' '}
-            <Code>provenyx-security-0.1.0.vsix</Code> via “Extensions: Install from VSIX…”.
+            Install <strong>Provenyx Security</strong> (<Code>OmkarPramodBandikatte.provenyx-security</Code>) from the Marketplace, or
+            open the repository in VS Code and press <Code>F5</Code> (“Run Provenyx Extension”). Uninstall the obsolete{' '}
+            <Code>Provenyx.provenyx-security</Code> if it is installed.
           </li>
           <li>
             Open the Provenyx view in the Activity Bar and check that the backend shows <strong>Connected</strong>.

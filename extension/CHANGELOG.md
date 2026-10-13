@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Ignore the legacy extension's `http://localhost:8000` default for `provenyx.apiBaseUrl`.
+- Keep activating when the legacy extension already registered the Provenyx commands.
+- Add an **Uninstall** button to the legacy extension warning.
+
 ## 0.1.5
 
 - Migrate legacy localhost API settings to the deployed Render backend once.

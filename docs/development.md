@@ -125,8 +125,9 @@ Invoke-RestMethod -Method Post http://localhost:8000/api/scans -ContentType appl
 ## 7. Package the extension as a VSIX
 
 ```bash
-npm run package:extension    # → extension/provenyx-security-0.1.0.vsix
-code --install-extension extension/provenyx-security-0.1.0.vsix
+npm run package:extension    # → extension/provenyx-security-<version>.vsix
+code --install-extension extension/provenyx-security-<version>.vsix
+# Uninstall the obsolete local build first if present: code --uninstall-extension provenyx.provenyx-security
 ```
 
 ## Contracts (local chain)

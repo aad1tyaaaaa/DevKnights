@@ -23,7 +23,10 @@ export class ApiError extends Error {
 }
 
 export function apiBaseUrl(): string {
-  const raw = vscode.workspace.getConfiguration('provenyx').get<string>('apiBaseUrl', DEFAULT_API_BASE_URL);
+  // Ignore the contributed default: another extension contributing this key (the legacy
+  // Provenyx.provenyx-security) can replace ours with http://localhost:8000.
+  const i = vscode.workspace.getConfiguration('provenyx').inspect<string>('apiBaseUrl');
+  const raw = i?.workspaceFolderValue ?? i?.workspaceValue ?? i?.globalValue ?? DEFAULT_API_BASE_URL;
   return raw.replace(/\/+$/, '');
 }
 

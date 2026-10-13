@@ -356,8 +356,9 @@ Open the repository root in VS Code and press **F5** (*Run Provenyx Extension*).
 ### Package the extension
 
 ```bash
-npm run package:extension               # → extension/provenyx-security-0.1.0.vsix
-code --install-extension extension/provenyx-security-0.1.0.vsix
+npm run package:extension               # → extension/provenyx-security-<version>.vsix
+code --install-extension extension/provenyx-security-<version>.vsix
+# Uninstall the obsolete local build first if present: code --uninstall-extension provenyx.provenyx-security
 ```
 
 Full OS-specific instructions are in [docs/development.md](docs/development.md).
@@ -433,8 +434,8 @@ The full schemas are in [docs/api-contract.md](docs/api-contract.md). Interactiv
 
 | Where | Setting | Default |
 |---|---|---|
-| VS Code | `provenyx.apiBaseUrl` | `http://localhost:8000` |
-| VS Code | `provenyx.dashboardUrl` | `http://localhost:3000` |
+| VS Code | `provenyx.apiBaseUrl` | `https://devknights.onrender.com` (set `http://localhost:8000` for local) |
+| VS Code | `provenyx.dashboardUrl` | `https://provenyx.vercel.app` |
 | VS Code | `provenyx.autoScanEnabled` | `true` |
 | VS Code | `provenyx.apiKey` | empty (local backend) |
 | Backend (`backend/.env`) | `PROVENYX_API_KEY` (shared access key; unset = open, local only), `PROVENYX_SUBMISSION_RATE_LIMIT_PER_MINUTE` | unset, `30` |
